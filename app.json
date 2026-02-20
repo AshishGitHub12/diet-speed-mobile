@@ -3,6 +3,7 @@
     "name": "diet-speed-mobile",
     "slug": "diet-speed-mobile",
     "version": "1.0.0",
+    "scheme": "dietspeed",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
