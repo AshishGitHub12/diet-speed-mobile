@@ -1,14 +1,28 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, ImageBackground } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  ImageBackground,
+  KeyboardAvoidingView,
+  ScrollView,
+  Platform,
+  Keyboard,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import InputField from "@/src/components/ui/InputField";
 import PrimaryButton from "@/src/components/ui/PrimaryButton";
 import { useRouter } from "expo-router";
 
 function LoginScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   const handleLogin = () => {
     console.log("Login clicked", { email, password });
@@ -17,39 +31,51 @@ function LoginScreen() {
 
   return (
     <ImageBackground
-    source={require('@/assets/images/bg-gradient.jpg')}
-    style={styles.background}
-    resizeMode="cover"
-  >
-    <View style={styles.container}>
-      <Image source={require("@/assets/images/logo.png")} style={styles.logo} />
+      source={require("@/assets/images/bg-gradient.jpg")}
+      style={styles.background}
+      resizeMode="cover"
+    >
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              justifyContent: isKeyboardVisible ? "center" : "center",    
+            },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            <Image source={require("@/assets/images/logo.png")} style={styles.logo} />
 
-      <Text style={styles.heading}>Sign in to your account</Text>
+            <Text style={styles.heading}>Sign in to your account</Text>
 
-      <InputField
-        label="Email"
-        placeholder="Enter your email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-      />
+            <InputField
+              label="Email"
+              placeholder="Enter your email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+            />
 
-      <InputField
-        label="Password"
-        placeholder="Enter your password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+            <InputField
+              label="Password"
+              placeholder="Enter your password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
 
-      <PrimaryButton title="Login" onPress={handleLogin} />
+            <PrimaryButton title="Login" onPress={handleLogin} />
 
-      <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
-        <Text style={styles.registerText}>
-          Don't have an account? Register
-        </Text>
-      </TouchableOpacity>
-    </View>
+            <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
+              <Text style={styles.registerText}>
+                Don't have an account? Register
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      {/* </KeyboardAvoidingView> */}
     </ImageBackground>
   );
 }
@@ -57,15 +83,18 @@ function LoginScreen() {
 export default LoginScreen;
 
 const styles = StyleSheet.create({
-    background: {
-        flex: 1,
-        justifyContent: 'flex-end',
-      },
-    container: {
-        paddingBottom: 90,
-        paddingHorizontal: 20,
-        width: '100%',
-      },
+  background: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  container: {
+    justifyContent:"center",
+    paddingBottom: 10,
+    paddingHorizontal: 20,
+    width: "100%",
+  },
   logo: {
     width: 180,
     height: 50,
