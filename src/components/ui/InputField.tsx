@@ -14,6 +14,9 @@ type Props = {
   keyboardType?: KeyboardTypeOptions;
   secureTextEntry?: boolean;
   label?: string;
+  required?: boolean;
+  requiredIcon?: boolean;
+  requiredText?: string;
 };
 
 function InputField({
@@ -23,6 +26,9 @@ function InputField({
   keyboardType = "default",
   secureTextEntry = false,
   label,
+  required = false,
+  requiredIcon = false,
+  requiredText = '*',
 }: Props) {
   return (
     <View style={styles.container}>
@@ -36,6 +42,9 @@ function InputField({
         onChangeText={onChangeText}
         keyboardType={keyboardType}
         secureTextEntry={secureTextEntry}
+        required={required}
+        requiredIcon={requiredIcon}
+        requiredText={requiredText}
       />
     </View>
   );
