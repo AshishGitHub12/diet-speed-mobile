@@ -15,17 +15,19 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import InputField from "@/src/components/ui/InputField";
 import PrimaryButton from "@/src/components/ui/PrimaryButton";
 import { useRouter } from "expo-router";
+import { useDispatch } from "react-redux";
 
 function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-
+  const dispatch = useDispatch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
 
   const handleLogin = () => {
     console.log("Login clicked", { email, password });
+    router.push("/(onboarding)/step1"); 
     // later: call API with RTK Query
   };
 
