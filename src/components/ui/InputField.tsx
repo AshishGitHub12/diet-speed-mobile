@@ -4,47 +4,35 @@ import {
   TextInput,
   StyleSheet,
   Text,
-  KeyboardTypeOptions,
+  TextInputProps,
 } from "react-native";
 
-type Props = {
+type Props = TextInputProps & {
   placeholder: string;
   value: string;
   onChangeText: (text: string) => void;
-  keyboardType?: KeyboardTypeOptions;
-  secureTextEntry?: boolean;
   label?: string;
   required?: boolean;
-  requiredIcon?: boolean;
-  requiredText?: string;
 };
 
 function InputField({
   placeholder,
   value,
   onChangeText,
-  keyboardType = "default",
-  secureTextEntry = false,
   label,
   required = false,
-  requiredIcon = false,
-  requiredText = '*',
+  ...rest
 }: Props) {
   return (
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
-
       <TextInput
         style={styles.input}
         placeholder={placeholder}
         placeholderTextColor="#888"
         value={value}
         onChangeText={onChangeText}
-        keyboardType={keyboardType}
-        secureTextEntry={secureTextEntry}
-        required={required}
-        requiredIcon={requiredIcon}
-        requiredText={requiredText}
+        {...rest}
       />
     </View>
   );
