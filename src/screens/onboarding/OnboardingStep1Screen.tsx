@@ -14,17 +14,17 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { Colors, Spacing, Fonts, BorderRadius } from '../../constants/theme';
-import { useAppDispatch } from '../../redux/hooks';
-import { saveStep1 } from '../../redux/onboardingSlice';
-import api from '../../services/api';
-import OnboardingProgress from '../../components/ui/OnboardingProgress';
-import PrimaryButton from '../../components/ui/PrimaryButton';
-import InputField from '../../components/ui/InputField';
-import FieldRow from '../../components/ui/FieldRow';
-import DropdownModal from '../../components/ui/DropdownModal';
-import CalendarPicker, { MONTHS } from '../../components/ui/CalendarPicker';
-import MedicalConditionModal from '../../components/ui/MedicalConditionModal';
+import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme'; 
+import { useAppDispatch } from '@/src/redux/hooks';
+import { saveStep1 } from '@/src/redux/onboardingSlice';
+import api from '@/src/services/api';
+import OnboardingProgress from '@/src/components/ui/Onboardingprogress';
+import PrimaryButton from '@/src/components/ui/PrimaryButton';
+import InputField from '@/src/components/ui/InputField';
+import FieldRow from '@/src/components/ui/Fieldrow';
+import DropdownModal from '@/src/components/ui/Dropdownmodal';
+import CalendarPicker, { MONTHS } from '@/src/components/ui/Calendarpicker';
+import MedicalConditionModal from '@/src/components/ui/Medicalconditionmodal';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -91,7 +91,7 @@ const OnboardingStep1Screen: React.FC = () => {
       };
 
       console.log('📤 Step 1 payload:', payload);
-      await api.post('/auth/onboarding/step1/', payload);
+      await api.post('/onboarding/step1/', payload);
 
       // Save to Redux for use in step 2
       dispatch(saveStep1({
@@ -155,6 +155,7 @@ const OnboardingStep1Screen: React.FC = () => {
             {/* 1 · Name */}
             <InputField
               label="What's your name?"
+              placeholder="Enter your name"
               required
               value={name}
               onChangeText={setName}
