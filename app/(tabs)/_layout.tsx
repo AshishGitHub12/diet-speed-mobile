@@ -87,7 +87,7 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   tabBarOuter: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 28 : 16,
+    bottom: Platform.OS === 'ios' ? 38 : 16,
     left: 20,
     right: 20,
     alignItems: 'center',
@@ -104,8 +104,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     // Matches Figma shadow
     shadowColor: '#317039',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 8,
     borderWidth: 1,

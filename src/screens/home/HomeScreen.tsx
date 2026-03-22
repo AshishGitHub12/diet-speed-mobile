@@ -7,7 +7,6 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Image,
-  FlatList,
   ActivityIndicator,
   RefreshControl,
   Platform,
@@ -17,6 +16,16 @@ import { useAppDispatch, useAppSelector } from '@/src/redux/hooks';
 import { setHomeData } from '@/src/redux/userSlice';
 import api from '@/src/services/api';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
+
+// ─── Icons ────────────────────────────────────────────────────────────────────
+
+const ICON_BELL       = require('@/assets/icons/Bell.png');
+const ICON_CALENDAR   = require('@/assets/icons/calendar.png');
+const ICON_WEIGHT     = require('@/assets/icons/weight.png');
+const ICON_MEAL       = require('@/assets/icons/meal.png');
+const ICON_CHALLENGES = require('@/assets/icons/steps.png');
+const ICON_HEALTH     = require('@/assets/icons/heart.png');
+const ICON_PLAY       = require('@/assets/icons/play.png');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,7 +134,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.headerRight}>
             <TouchableOpacity style={styles.iconBtn}>
-              <Text style={styles.iconText}>🔔</Text>
+              <Image source={ICON_BELL} style={styles.iconImg} resizeMode="contain" />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
               <View style={styles.avatar}>
@@ -149,7 +158,7 @@ export default function HomeScreen() {
             <Text style={styles.dateTitle}>
               {homeData ? formatDate(homeData.date.today_date, homeData.date.day_name) : ''}
             </Text>
-            <Text style={styles.calendarIcon}>📅</Text>
+            <Image source={ICON_CALENDAR} style={styles.calendarImg} resizeMode="contain" />
           </View>
           <View style={styles.weekRow}>
             {weekDays.map((d, i) => (
@@ -173,33 +182,33 @@ export default function HomeScreen() {
 
               {/* Weight Tracker */}
               <TouchableOpacity style={styles.toolCard}>
-                <Text style={styles.toolTitle}>Weight{'\n'}Tracker</Text>
-                <Text style={styles.toolIcon}>⚖️</Text>
+                <Text style={styles.toolTitle}>Weight Tracker</Text>
+                <Image source={ICON_WEIGHT} style={styles.toolImg} resizeMode="contain" />
                 <Text style={styles.toolSub}>
                   {homeData?.user?.current_weight
                     ? `${homeData.user.current_weight} kg`
-                    : 'Current Weight'}
+                    : 'Current Weight\n--'}
                 </Text>
               </TouchableOpacity>
 
               {/* Meal Log */}
               <TouchableOpacity style={styles.toolCard}>
                 <Text style={styles.toolTitle}>Meal Log</Text>
-                <Text style={styles.toolIcon}>🍽️</Text>
-                <Text style={styles.toolSub}>Keep Track Of{'\n'}Your Daily Diet</Text>
+                <Image source={ICON_MEAL} style={styles.toolImg} resizeMode="contain" />
+                <Text style={styles.toolSub}>Your Daily Diet</Text>
               </TouchableOpacity>
 
               {/* Challenges */}
               <TouchableOpacity style={styles.toolCard}>
                 <Text style={styles.toolTitle}>Challenges</Text>
-                <Text style={styles.toolIcon}>👟</Text>
+                <Image source={ICON_CHALLENGES} style={styles.toolImg} resizeMode="contain" />
                 <Text style={styles.toolSub}>Join Now</Text>
               </TouchableOpacity>
 
               {/* Health Tracker */}
               <TouchableOpacity style={styles.toolCard}>
-                <Text style={styles.toolTitle}>Health{'\n'}Tracker</Text>
-                <Text style={styles.toolIcon}>🩺</Text>
+                <Text style={styles.toolTitle}>Health Tracker</Text>
+                <Image source={ICON_HEALTH} style={styles.toolImg} resizeMode="contain" />
                 <Text style={styles.toolSub}>Join Now</Text>
               </TouchableOpacity>
 
@@ -246,7 +255,7 @@ export default function HomeScreen() {
                       defaultSource={require('@/assets/images/logo.png')}
                     />
                     <View style={styles.playBtn}>
-                      <Text style={styles.playIcon}>▶</Text>
+                      <Image source={ICON_PLAY} style={styles.playImg} resizeMode="contain" />
                     </View>
                     <View style={styles.exploreOverlay}>
                       <Text style={styles.exploreTitle}>{workout.title}</Text>
@@ -273,7 +282,7 @@ export default function HomeScreen() {
                       defaultSource={require('@/assets/images/logo.png')}
                     />
                     <View style={styles.playBtn}>
-                      <Text style={styles.playIcon}>▶</Text>
+                      <Image source={ICON_PLAY} style={styles.playImg} resizeMode="contain" />
                     </View>
                     <View style={styles.recipeOverlay}>
                       <Text style={styles.recipeTitle}>{recipe.name}</Text>
@@ -320,7 +329,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
     borderWidth: 1, borderColor: Colors.border,
   },
-  iconText: { fontSize: 18 },
+  iconImg: { width: 20, height: 20 },
+  calendarImg: { width: 20, height: 20 },
   avatar: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: Colors.primaryMuted,
@@ -330,8 +340,8 @@ const styles = StyleSheet.create({
 
   // Greeting
   greetingContainer: { marginBottom: Spacing.md },
-  greetingHello: { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
-  greetingName: { fontSize: Fonts.sizes.xl, fontWeight: '700', color: Colors.textDark },
+  greetingHello: { fontSize: Fonts.sizes.md, color: Colors.textMuted },
+  greetingName: { fontSize: Fonts.sizes.xl, fontWeight: '600', color: Colors.textDark },
 
   // Card (date)
   card: {
@@ -349,7 +359,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   dateTitle: { fontSize: Fonts.sizes.sm, color: Colors.textDark, fontWeight: '500' },
-  calendarIcon: { fontSize: 18 },
 
   // Week strip
   weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
@@ -371,21 +380,34 @@ const styles = StyleSheet.create({
   section: { marginBottom: Spacing.lg },
 
   // Tools
-  toolsRow: { flexDirection: 'row', gap: 12 },
+  toolsRow: { flexDirection: 'row', gap: 12, paddingBottom: 4 },
   toolCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
-    width: 130,
+    width: 140,
+    height: 160,
     shadowColor: '#000',
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
-    gap: 6,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  toolTitle: { fontSize: Fonts.sizes.sm, fontWeight: '600', color: Colors.primary, lineHeight: 18 },
-  toolIcon: { fontSize: 28 },
-  toolSub: { fontSize: 11, color: Colors.textMuted, lineHeight: 16 },
+  toolImg: { width: 35, height: 35, alignSelf: 'center' },
+  toolTitle: {
+    fontSize: Fonts.sizes.sm,
+    fontWeight: '700',
+    color: Colors.primary,
+    lineHeight: 22,
+  },
+  toolSub: {
+    fontSize: Fonts.sizes.sm,
+    color: Colors.textDark,
+    lineHeight: 18,
+    alignSelf: 'center',
+  },
 
   // Success Stories
   storiesRow: { flexDirection: 'row', gap: 12 },
@@ -420,7 +442,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.85)',
     justifyContent: 'center', alignItems: 'center',
   },
-  playIcon: { fontSize: 14, color: Colors.primary, marginLeft: 2 },
+  playImg: { width: 16, height: 16 },
   exploreOverlay: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: 'rgba(0,0,0,0.45)',
