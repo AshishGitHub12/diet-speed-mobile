@@ -10,46 +10,46 @@ import {
   TextInput,
   Image,
   KeyboardAvoidingView,
+  Alert,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 
 import { Colors, Spacing, Fonts, BorderRadius } from '../../constants/theme';
-import OnboardingProgress from '@/src/components/ui/Onboardingprogress';
+import { useAppDispatch } from '../../redux/hooks';
+import { saveStep1 } from '../../redux/onboardingSlice';
+import api from '../../services/api';
+import OnboardingProgress from '../../components/ui/OnboardingProgress';
 import PrimaryButton from '../../components/ui/PrimaryButton';
 import InputField from '../../components/ui/InputField';
-import FieldRow from '@/src/components/ui/Fieldrow';
-import DropdownModal from '@/src/components/ui/Dropdownmodal';
-import CalendarPicker, { MONTHS } from '@/src/components/ui/Calendarpicker';
-import MedicalConditionModal from '@/src/components/ui/Medicalconditionmodal';
+import FieldRow from '../../components/ui/FieldRow';
+import DropdownModal from '../../components/ui/DropdownModal';
+import CalendarPicker, { MONTHS } from '../../components/ui/CalendarPicker';
+import MedicalConditionModal from '../../components/ui/MedicalConditionModal';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const GENDERS = ['Male', 'Female', 'Other', 'Prefer not to say'];
 const HEIGHT_UNITS = ['cm', 'ft'];
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface Step1Data {
-  name: string;
-  dob: Date;
-  gender: string;
-  weight: string;
-  height: string;
-  heightUnit: string;
-  medicalConditions: string[];
-}
-
-interface OnboardingStep1Props {
-  onNext?: (data: Step1Data) => void;
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const formatDob = (d: Date) =>
   `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 
+// Format date to YYYY-MM-DD for API
+const formatDobForApi = (d: Date): string => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
+
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-const OnboardingStep1Screen: React.FC<OnboardingStep1Props> = ({ onNext }) => {
+const OnboardingStep1Screen: React.FC = () => {
+  const router = useRouter();
+  const dispatch = useAppDispatch();
+
   // Form state
   const [name, setName] = useState('');
   const [dob, setDob] = useState(new Date(1996, 0, 1));
@@ -58,6 +58,7 @@ const OnboardingStep1Screen: React.FC<OnboardingStep1Props> = ({ onNext }) => {
   const [height, setHeight] = useState('180');
   const [heightUnit, setHeightUnit] = useState('cm');
   const [medicalConditions, setMedicalConditions] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Modal visibility
   const [showDob, setShowDob] = useState(false);
@@ -70,9 +71,49 @@ const OnboardingStep1Screen: React.FC<OnboardingStep1Props> = ({ onNext }) => {
 
   const isFormValid = name.trim().length > 0;
 
-  const handleNext = () => {
+  // ─── API Call ────────────────────────────────────────────────────────────────
+
+  const handleNext = async () => {
     if (!isFormValid) return;
-    onNext?.({ name, dob, gender, weight, height, heightUnit, medicalConditions });
+    setIsLoading(true);
+
+    try {
+      const payload = {
+        name: name.trim(),
+        dob: formatDobForApi(dob),
+        gender: gender.toLowerCase(),
+        height: parseFloat(height),
+        height_unit: heightUnit,
+        weight: parseFloat(weight),
+        medical_conditions: medicalConditions.length > 0
+          ? medicalConditions.map(c => c.toLowerCase())
+          : ['none'],
+      };
+
+      console.log('📤 Step 1 payload:', payload);
+      await api.post('/auth/onboarding/step1/', payload);
+
+      // Save to Redux for use in step 2
+      dispatch(saveStep1({
+        name: payload.name,
+        dob: dob.toISOString(),
+        gender: payload.gender,
+        height: payload.height,
+        height_unit: payload.height_unit,
+        weight: payload.weight,
+        medical_conditions: payload.medical_conditions,
+      }));
+
+      router.push('/(onboarding)/step2');
+    } catch (error: any) {
+      console.log('❌ Step 1 error:', JSON.stringify(error?.response?.data));
+      Alert.alert(
+        'Error',
+        error?.response?.data?.message || 'Something went wrong. Please try again.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -97,7 +138,7 @@ const OnboardingStep1Screen: React.FC<OnboardingStep1Props> = ({ onNext }) => {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <Image
-              source={require('@/assets/images/logo.png')}
+              source={require('../../../assets/images/logo.png')}
               style={styles.logo}
               resizeMode="contain"
             />
@@ -142,7 +183,7 @@ const OnboardingStep1Screen: React.FC<OnboardingStep1Props> = ({ onNext }) => {
               <Text style={styles.chevron}>›</Text>
             </TouchableOpacity>
 
-            {/* 4 · Weight — editable, kg fixed */}
+            {/* 4 · Weight */}
             <FieldRow icon="⚖️">
               <TextInput
                 style={styles.editableInput}
@@ -157,7 +198,7 @@ const OnboardingStep1Screen: React.FC<OnboardingStep1Props> = ({ onNext }) => {
               </View>
             </FieldRow>
 
-            {/* 5 · Height — editable + cm/ft dropdown */}
+            {/* 5 · Height */}
             <FieldRow icon="↕">
               <TextInput
                 style={styles.editableInput}
@@ -194,19 +235,23 @@ const OnboardingStep1Screen: React.FC<OnboardingStep1Props> = ({ onNext }) => {
 
           </View>
 
-          {/* Footer note */}
           <Text style={styles.footerNote}>Lorem ipsum dolor sit amet consectetur.</Text>
 
         </ScrollView>
 
-        {/* ── Fixed bottom button ── */}
+        {/* Fixed bottom button */}
         <View style={styles.bottomBar}>
-          <PrimaryButton title="Next" onPress={handleNext} disabled={!isFormValid} />
+          <PrimaryButton
+            title="Next"
+            onPress={handleNext}
+            disabled={!isFormValid}
+            loading={isLoading}
+          />
         </View>
 
       </KeyboardAvoidingView>
 
-      {/* ── Modals ── */}
+      {/* Modals */}
       <CalendarPicker
         visible={showDob}
         date={dob}
@@ -258,7 +303,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // Logo
   logoContainer: {
     marginTop: Spacing.md,
     marginBottom: Spacing.md,
@@ -266,7 +310,6 @@ const styles = StyleSheet.create({
   },
   logo: { width: 160, height: 60 },
 
-  // Heading
   heading: {
     fontSize: Fonts.sizes.xl,
     fontWeight: '600',
@@ -276,10 +319,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
 
-  // Form
   formContainer: { width: '100%', gap: 12, marginBottom: Spacing.lg },
 
-  // Tap-to-open rows (DOB, Gender, Medical)
   selectorRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -296,7 +337,6 @@ const styles = StyleSheet.create({
   selectorPlaceholder: { color: Colors.primary },
   chevron: { fontSize: 22, color: Colors.textMuted },
 
-  // Editable inputs (weight / height)
   editableInput: {
     flex: 1,
     fontSize: Fonts.sizes.md,
@@ -304,7 +344,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
 
-  // kg badge (fixed)
   unitBadge: {
     backgroundColor: Colors.primaryMuted,
     borderRadius: BorderRadius.sm,
@@ -317,7 +356,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // cm/ft dropdown trigger
   unitDropdown: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -334,7 +372,6 @@ const styles = StyleSheet.create({
   },
   unitDropdownArrow: { fontSize: 10, color: Colors.primary },
 
-  // Footer
   footerNote: {
     fontSize: Fonts.sizes.sm,
     color: Colors.textMuted,
@@ -342,7 +379,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
 
-  // Pinned bottom button
   bottomBar: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.sm,
