@@ -4,13 +4,12 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  SafeAreaView,
   TouchableOpacity,
   Image,
   ActivityIndicator,
   RefreshControl,
-  Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '@/src/redux/hooks';
 import { setHomeData } from '@/src/redux/userSlice';
@@ -39,24 +38,9 @@ interface HomeData {
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
 
-const getWeekDays = (todayStr: string) => {
-  const today = new Date(todayStr);
-  const days = [];
-  for (let i = -3; i <= 3; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    days.push({
-      date: d.getDate(),
-      day: d.toLocaleDateString('en-US', { weekday: 'short' }),
-      isToday: i === 0,
-    });
-  }
-  return days;
-};
-
-const formatDate = (dateStr: string, dayName: string) => {
+const formatDate = (dateStr: string) => {
   const d = new Date(dateStr);
-  return `${dayName}, ${d.getDate()} ${d.toLocaleDateString('en-US', { month: 'short' })} ${d.getFullYear()}`;
+  return `${d.getDate()} ${d.toLocaleDateString('en-US', { month: 'long' })} ${d.getFullYear()}`;
 };
 
 // ─── Section Header ───────────────────────────────────────────────────────────
@@ -111,10 +95,9 @@ export default function HomeScreen() {
     );
   }
 
-  const weekDays = homeData ? getWeekDays(homeData.date.today_date) : [];
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -152,26 +135,15 @@ export default function HomeScreen() {
           <Text style={styles.greetingName}>{homeData?.user?.name ?? 'User'}</Text>
         </View>
 
-        {/* ── Date / Calendar strip ── */}
-        <View style={styles.card}>
-          <View style={styles.dateHeader}>
-            <Text style={styles.dateTitle}>
-              {homeData ? formatDate(homeData.date.today_date, homeData.date.day_name) : ''}
+        {/* ── Date Card ── */}
+        <View style={styles.dateCard}>
+          <View>
+            <Text style={styles.dateDayName}>{homeData?.date?.day_name ?? ''}</Text>
+            <Text style={styles.dateFullDate}>
+              {homeData ? formatDate(homeData.date.today_date) : ''}
             </Text>
-            <Image source={ICON_CALENDAR} style={styles.calendarImg} resizeMode="contain" />
           </View>
-          <View style={styles.weekRow}>
-            {weekDays.map((d, i) => (
-              <View key={i} style={styles.dayCol}>
-                <Text style={styles.dayName}>{d.day}</Text>
-                <View style={[styles.dayCircle, d.isToday && styles.dayCircleActive]}>
-                  <Text style={[styles.dayNum, d.isToday && styles.dayNumActive]}>
-                    {d.date}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
+          <Image source={ICON_CALENDAR} style={styles.calendarImg} resizeMode="contain" />
         </View>
 
         {/* ── Tools ── */}
@@ -295,8 +267,8 @@ export default function HomeScreen() {
           </View>
         )}
 
-        {/* Bottom padding for floating tab bar */}
-        <View style={{ height: 100 }} />
+        {/* Bottom padding for floating tab bar — enough for both iOS and Android */}
+        <View style={{ height: 120 }} />
 
       </ScrollView>
     </SafeAreaView>
@@ -330,7 +302,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: Colors.border,
   },
   iconImg: { width: 20, height: 20 },
-  calendarImg: { width: 20, height: 20 },
+  calendarImg: { width: 24, height: 24 },
   avatar: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: Colors.primaryMuted,
@@ -339,42 +311,36 @@ const styles = StyleSheet.create({
   avatarText: { fontSize: 16, fontWeight: '700', color: Colors.primary },
 
   // Greeting
-  greetingContainer: { marginBottom: Spacing.md },
-  greetingHello: { fontSize: Fonts.sizes.md, color: Colors.textMuted },
-  greetingName: { fontSize: Fonts.sizes.xl, fontWeight: '600', color: Colors.textDark },
+  greetingContainer: { marginBottom: Spacing.md, marginTop: Spacing.sm },
+  greetingHello: { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
+  greetingName: { fontSize: Fonts.sizes.xl, fontWeight: '700', color: Colors.textDark },
 
-  // Card (date)
-  card: {
+  // Date card
+  dateCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 4,
     marginBottom: Spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOpacity: 0.04,
-    shadowRadius: 8,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  dateHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    marginBottom: Spacing.sm,
+  dateDayName: {
+    fontSize: Fonts.sizes.sm,
+    color: Colors.textMuted,
+    marginBottom: 2,
   },
-  dateTitle: { fontSize: Fonts.sizes.sm, color: Colors.textDark, fontWeight: '500' },
-
-  // Week strip
-  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  dayCol: { alignItems: 'center', gap: 6 },
-  dayName: { fontSize: 11, color: Colors.textMuted },
-  dayCircle: {
-    width: 32, height: 32, borderRadius: 16,
-    borderWidth: 1, borderColor: Colors.border,
-    justifyContent: 'center', alignItems: 'center',
+  dateFullDate: {
+    fontSize: Fonts.sizes.md,
+    fontWeight: '600',
+    color: Colors.textDark,
   },
-  dayCircleActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  dayNum: { fontSize: Fonts.sizes.sm, color: Colors.textDark },
-  dayNumActive: { color: Colors.white, fontWeight: '700' },
 
   // Sections
   section: { marginBottom: Spacing.lg },
@@ -393,20 +359,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 4,
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
-  toolImg: { width: 35, height: 35, alignSelf: 'center' },
+  toolImg: { width: 36, height: 36 },
   toolTitle: {
     fontSize: Fonts.sizes.sm,
     fontWeight: '700',
     color: Colors.primary,
     lineHeight: 22,
+    textAlign: 'center',
   },
   toolSub: {
     fontSize: Fonts.sizes.sm,
     color: Colors.textDark,
     lineHeight: 18,
-    alignSelf: 'center',
+    textAlign: 'center',
   },
 
   // Success Stories

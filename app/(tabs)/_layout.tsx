@@ -1,9 +1,9 @@
 import { Tabs } from 'expo-router';
-import { View, Text, StyleSheet, Platform, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/theme';
 
 // ─── Local Icon Assets ────────────────────────────────────────────────────────
-// Export from Figma as PNG 3x and place in assets/icons/
 
 const ICON_HOME    = require('@/assets/icons/home.png');
 const ICON_DIET    = require('@/assets/icons/diet.png');
@@ -13,6 +13,8 @@ const ICON_PROFILE = require('@/assets/icons/profile.png');
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
+  const insets = useSafeAreaInsets();
+
   const icons: Record<string, any> = {
     home:    ICON_HOME,
     diet:    ICON_DIET,
@@ -21,7 +23,11 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
   };
 
   return (
-    <View style={styles.tabBarOuter}>
+    <View style={[
+      styles.tabBarOuter,
+      // Respect Android nav bar + add extra breathing room
+      { bottom: Math.max(insets.bottom, 12) + 2 },
+    ]}>
       <View style={styles.tabBarPill}>
         {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
@@ -47,10 +53,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             >
               <Image
                 source={icons[route.name]}
-                style={[
-                  styles.tabIcon,
-                  { opacity: isFocused ? 1 : 0.45 },
-                ]}
+                style={[styles.tabIcon, { opacity: isFocused ? 1 : 0.4 }]}
                 resizeMode="contain"
               />
               {isFocused && (
@@ -87,25 +90,22 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   tabBarOuter: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 38 : 16,
-    left: 20,
-    right: 20,
+    left: 16,
+    right: 16,
     alignItems: 'center',
   },
   tabBarPill: {
     flexDirection: 'row',
-    // Matches Figma: linear-gradient(92.75deg, rgba(222,235,221,0.6), rgba(200,214,190,0.6))
     backgroundColor: '#D6E8D0',
     borderRadius: 50,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     width: '100%',
     justifyContent: 'space-around',
     alignItems: 'center',
-    // Matches Figma shadow
     shadowColor: '#317039',
-    shadowOffset: { width: 0, height: -5 },
-    shadowOpacity: 0.3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
     shadowRadius: 10,
     elevation: 8,
     borderWidth: 1,
@@ -115,8 +115,8 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    minHeight: 44,
+    paddingVertical: 6,
+    gap: 3,
   },
   tabIcon: {
     width: 26,

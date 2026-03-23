@@ -3,7 +3,7 @@ import { getAccessToken, getRefreshToken, saveTokens, clearTokens } from '../uti
 
 // ─── Base URL ─────────────────────────────────────────────────────────────────
 // Change this when moving to production
-export const BASE_URL = 'http://127.0.0.1:8000/api';
+export const BASE_URL = 'http://192.168.1.7:8000/api';
 
 // ─── Axios instance ───────────────────────────────────────────────────────────
 const api = axios.create({
