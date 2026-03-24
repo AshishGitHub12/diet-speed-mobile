@@ -8,7 +8,8 @@ import { Colors } from '../../src/constants/theme';
 const ICON_HOME    = require('@/assets/icons/home.png');
 const ICON_DIET    = require('@/assets/icons/diet.png');
 const ICON_WORKOUT = require('@/assets/icons/workout.png');
-const ICON_PROFILE = require('@/assets/icons/profile.png');
+const ICON_PROFILE = require('@/assets/icons/profile-icon1.png');
+const ICON_AI      = require('@/assets/icons/ai-icon.png');
 
 // ─── Custom Tab Bar ───────────────────────────────────────────────────────────
 
@@ -20,6 +21,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     diet:    ICON_DIET,
     workout: ICON_WORKOUT,
     profile: ICON_PROFILE,
+    'ai-coach': ICON_AI,
   };
 
   return (
@@ -80,6 +82,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="home"    options={{ title: 'Home' }} />
       <Tabs.Screen name="diet"    options={{ title: 'Diet' }} />
       <Tabs.Screen name="workout" options={{ title: 'Workout' }} />
+      <Tabs.Screen name="ai-coach" options={{ title: 'Ai Coach' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );
