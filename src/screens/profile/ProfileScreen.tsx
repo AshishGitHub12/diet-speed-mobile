@@ -141,8 +141,8 @@ export default function ProfileScreen() {
           <Text style={styles.headerBack}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Profile</Text>
-        <TouchableOpacity style={styles.headerBtn}>
-        <Image source={require('@/assets/icons/Bell.png')} style={styles.iconSm} /> 
+        <TouchableOpacity style={styles.headerBtn} onPress={() => router.push('/notifications')} >
+        <Image source={require('@/assets/icons/bell.png')} style={styles.iconSm} /> 
         </TouchableOpacity>
       </View>
 

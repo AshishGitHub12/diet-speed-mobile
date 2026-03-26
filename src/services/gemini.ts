@@ -2,7 +2,7 @@
 // Model: gemini-2.5-flash (free tier)
 // Docs: https://ai.google.dev/docs
 
-const GEMINI_API_KEY = 'AIzaSyBzHuGQ26BzGlS5t1jI13PUlYNzcPZjJl0'; 
+const GEMINI_API_KEY = 'AIzaSyDM2O5zJ8n0nTBug9W3lCly0nqIBYF2Txk'; 
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
