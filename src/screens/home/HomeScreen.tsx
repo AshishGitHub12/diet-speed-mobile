@@ -19,7 +19,7 @@ import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
-const ICON_BELL       = require('@/assets/icons/bell.png');
+const ICON_BELL       = require('@/assets/icons/Bell.png');
 const ICON_CALENDAR   = require('@/assets/icons/calendar.png');
 const ICON_WEIGHT     = require('@/assets/icons/weight.png');
 const ICON_MEAL       = require('@/assets/icons/meal.png');
