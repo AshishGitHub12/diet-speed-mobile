@@ -142,7 +142,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Profile</Text>
         <TouchableOpacity style={styles.headerBtn} onPress={() => router.push('/notifications')} >
-        <Image source={require('@/assets/icons/bell.png')} style={styles.iconSm} /> 
+        <Image source={require('@/assets/icons/Bell.png')} style={styles.iconSm} /> 
         </TouchableOpacity>
       </View>
 
@@ -197,13 +197,13 @@ export default function ProfileScreen() {
         {/* ── More ── */}
         <Text style={styles.sectionTitle}>More</Text>
         <View style={styles.menuGroup}>
-          <MenuRow label="Track my Programs"  onPress={() => {}} />
-          <MenuRow label="Progress Reports"   onPress={() => {}} />
-          <MenuRow label="Health Logs"        onPress={() => {}} />
-          <MenuRow label="Diet Preferences"   onPress={() => {}} />
-          <MenuRow label="Favorites"          onPress={() => {}} />
-          <MenuRow label="Connected Devices"  onPress={() => {}} />
-          <MenuRow label="Reminders"          onPress={() => {}} />
+        <MenuRow label="Track my Programs"  onPress={() => router.push('/profile/track-programs' as any)} />
+        <MenuRow label="Progress Reports"   onPress={() => router.push('/profile/progress-reports' as any)} />
+        <MenuRow label="Health Logs"        onPress={() => router.push('/profile/health-logs' as any)} />
+          <MenuRow label="Diet Preferences"   onPress={() => router.push('/profile/diet-preferences' as any)} />
+          <MenuRow label="Favorites"          onPress={() => router.push('/profile/favorites' as any)} />
+          <MenuRow label="Connected Devices"  onPress={() => router.push('/profile/connected-devices' as any)} />
+          <MenuRow label="Reminders"          onPress={() => router.push('/profile/reminders' as any)} />
         </View>
 
         {/* ── About ── */}
