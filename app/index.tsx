@@ -2,6 +2,12 @@ import { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getAccessToken } from '@/src/utils/secureStore';
+import {
+  clearOnboardingProgress,
+  getOnboardingResumeRoute,
+  isOnboardingInProgress,
+  setCurrentOnboardingStep,
+} from '@/src/utils/onboardingStore';
 import { setTokens, setOnboarded } from '@/src/redux/authSlice';
 import { setProfile } from '@/src/redux/userSlice';
 import { useAppDispatch } from '@/src/redux/hooks';
@@ -35,12 +41,18 @@ export default function Index() {
       dispatch(setProfile(profile));
       dispatch(setOnboarded(profile.onboarding_completed));
 
-      if (profile.onboarding_completed) {
-        // Fully onboarded — go straight to home
+      const inProgress = await isOnboardingInProgress();
+
+      if (profile.onboarding_completed && !inProgress) {
+        await clearOnboardingProgress();
         router.replace('/(tabs)/home');
       } else {
-        // Token valid but onboarding not done — resume from step 1
-        router.replace('/(onboarding)/step1');
+        const resumeRoute = await getOnboardingResumeRoute();
+        const stepMatch = resumeRoute.match(/step(\d+)/);
+        if (stepMatch) {
+          await setCurrentOnboardingStep(parseInt(stepMatch[1], 10));
+        }
+        router.replace(resumeRoute as '/(onboarding)/step1');
       }
     } catch {
       // Token invalid or expired and refresh failed — go to login

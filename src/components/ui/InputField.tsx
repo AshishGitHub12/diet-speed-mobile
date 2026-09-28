@@ -1,11 +1,13 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   TextInput,
   StyleSheet,
   Text,
   TextInputProps,
+  TouchableOpacity,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 type Props = TextInputProps & {
   placeholder: string;
@@ -21,19 +23,41 @@ function InputField({
   onChangeText,
   label,
   required = false,
+  secureTextEntry,
   ...rest
 }: Props) {
+  const [passwordVisible, setPasswordVisible] = useState(false);
+
   return (
     <View style={styles.container}>
       {label && <Text style={styles.label}>{label}</Text>}
-      <TextInput
-        style={styles.input}
-        placeholder={placeholder}
-        placeholderTextColor="#888"
-        value={value}
-        onChangeText={onChangeText}
-        {...rest}
-      />
+      <View style={styles.inputWrapper}>
+        <TextInput
+          style={styles.input}
+          placeholder={placeholder}
+          placeholderTextColor="#888"
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={secureTextEntry && !passwordVisible}
+          {...rest}
+        />
+        {secureTextEntry && (
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={() => setPasswordVisible((v) => !v)}
+            activeOpacity={0.6}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel={passwordVisible ? "Hide password" : "Show password"}
+          >
+            <Ionicons
+              name={passwordVisible ? "eye-outline" : "eye-off-outline"}
+              size={22}
+              color="#888"
+            />
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
@@ -50,13 +74,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#444",
   },
-  input: {
+  inputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
     height: 50,
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 12,
+    backgroundColor: "#fff",
+    overflow: "hidden",
+  },
+  input: {
+    flex: 1,
+    height: "100%",
     paddingHorizontal: 14,
     fontSize: 16,
-    backgroundColor: "#fff",
+    backgroundColor: "transparent",
+  },
+  eyeButton: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    alignSelf: "stretch",
   },
 });
