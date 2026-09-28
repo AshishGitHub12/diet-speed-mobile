@@ -52,6 +52,8 @@ const OnboardingStep1Screen: React.FC = () => {
 
   // Form state
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [dob, setDob] = useState(new Date(1996, 0, 1));
   const [gender, setGender] = useState('Male');
   const [weight, setWeight] = useState('70');
@@ -121,7 +123,7 @@ const OnboardingStep1Screen: React.FC = () => {
 
       {/* Progress bar */}
       <View style={styles.progressWrapper}>
-        <OnboardingProgress totalSteps={3} currentStep={1} />
+        <OnboardingProgress totalSteps={14} currentStep={0} />
       </View>
 
       <KeyboardAvoidingView
@@ -154,16 +156,36 @@ const OnboardingStep1Screen: React.FC = () => {
 
             {/* 1 · Name */}
             <InputField
-              label="What's your name?"
-              placeholder="Enter your name"
+              // label="What's your name?"
+              placeholder="What's your name*"
               required
               value={name}
               onChangeText={setName}
               returnKeyType="done"
             />
 
+            {/* 2 · Email */}
+            <InputField
+              // label="What's your email?"
+              placeholder="What's your email*"
+              required
+              value={email}
+              onChangeText={setEmail}
+              returnKeyType="done"
+            />
+
+            {/* 3 · Phone Number */}
+            <InputField
+              // label="What's your email?"
+              placeholder="Phone Number*"
+              required
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              returnKeyType="done"
+            />
+
             {/* 2 · Date of Birth */}
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.selectorRow}
               onPress={() => setShowDob(true)}
               activeOpacity={0.75}
@@ -171,10 +193,10 @@ const OnboardingStep1Screen: React.FC = () => {
               <Text style={styles.selectorIcon}>🎂</Text>
               <Text style={styles.selectorValue}>{formatDob(dob)}</Text>
               <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             {/* 3 · Gender */}
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.selectorRow}
               onPress={() => setShowGender(true)}
               activeOpacity={0.75}
@@ -182,10 +204,10 @@ const OnboardingStep1Screen: React.FC = () => {
               <Text style={styles.selectorIcon}>⚥</Text>
               <Text style={styles.selectorValue}>{gender}</Text>
               <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             {/* 4 · Weight */}
-            <FieldRow icon="⚖️">
+            {/* <FieldRow icon="⚖️">
               <TextInput
                 style={styles.editableInput}
                 value={weight}
@@ -197,10 +219,10 @@ const OnboardingStep1Screen: React.FC = () => {
               <View style={styles.unitBadge}>
                 <Text style={styles.unitBadgeText}>kg</Text>
               </View>
-            </FieldRow>
+            </FieldRow> */}
 
             {/* 5 · Height */}
-            <FieldRow icon="↕">
+            {/* <FieldRow icon="↕">
               <TextInput
                 style={styles.editableInput}
                 value={height}
@@ -216,10 +238,10 @@ const OnboardingStep1Screen: React.FC = () => {
                 <Text style={styles.unitDropdownText}>{heightUnit}</Text>
                 <Text style={styles.unitDropdownArrow}>▾</Text>
               </TouchableOpacity>
-            </FieldRow>
+            </FieldRow> */}
 
             {/* 6 · Medical Condition */}
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.selectorRow}
               onPress={() => setShowMedical(true)}
               activeOpacity={0.75}
@@ -232,16 +254,17 @@ const OnboardingStep1Screen: React.FC = () => {
                 {medicalLabel ?? 'Medical Condition'}
               </Text>
               <Text style={styles.chevron}>›</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
           </View>
 
-          <Text style={styles.footerNote}>Lorem ipsum dolor sit amet consectetur.</Text>
+         
 
         </ScrollView>
 
         {/* Fixed bottom button */}
         <View style={styles.bottomBar}>
+        <Text style={styles.footerNote}>Lorem ipsum dolor sit amet consectetur.</Text>
           <PrimaryButton
             title="Next"
             onPress={handleNext}

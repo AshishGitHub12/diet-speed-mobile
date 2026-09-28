@@ -1,178 +1,152 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  SafeAreaView,
-  TouchableOpacity,
-  Platform,
-  Image,
-  KeyboardAvoidingView,
-  TextInput,
-  Alert,
-} from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';   
+import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
 import { useAppDispatch, useAppSelector } from '@/src/redux/hooks';
-import { saveStep2 } from '@/src/redux/onboardingSlice';
+import { saveStep1 } from '@/src/redux/onboardingSlice';
 import api from '@/src/services/api';
-import OnboardingProgress from '@/src/components/ui/Onboardingprogress';
-import PrimaryButton from '@/src/components/ui/PrimaryButton';
+import OnboardingScaffold from '@/src/components/ui/OnboardingScaffold';
 import FieldRow from '@/src/components/ui/Fieldrow';
 import DropdownModal from '@/src/components/ui/Dropdownmodal';
+import MedicalConditionModal from '@/src/components/ui/Medicalconditionmodal';
+import SimpleDateSelector, { MONTHS } from '@/src/components/ui/SimpleDateSelector';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
+const TOTAL_STEPS = 14;
+const GENDERS = ['Male', 'Female', 'Other', 'Prefer not to say'];
 const HEIGHT_UNITS = ['cm', 'ft'];
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+const formatDobForApi = (d: Date): string => {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+};
 
 const OnboardingStep2Screen: React.FC = () => {
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const step1Draft = useAppSelector((state) => state.onboarding.step1Draft);
 
-  // Pre-fill from Step 1 Redux state
-  const step1 = useAppSelector((state) => state.onboarding.step1);
-
-  const [height, setHeight] = useState(String(step1?.height ?? '180'));
-  const [heightUnit, setHeightUnit] = useState(step1?.height_unit ?? 'cm');
-  const [weight, setWeight] = useState(String(step1?.weight ?? '70'));
+  const [dob, setDob] = useState(new Date(1996, 0, 1));
+  const [gender, setGender] = useState('Male');
+  const [weight, setWeight] = useState('');
+  const [height, setHeight] = useState('');
+  const [heightUnit, setHeightUnit] = useState('cm');
+  const [medicalConditions, setMedicalConditions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  const [showGender, setShowGender] = useState(false);
   const [showHeightUnit, setShowHeightUnit] = useState(false);
+  const [showMedical, setShowMedical] = useState(false);
 
-  const isFormValid = !!height && !!weight;
+  const medicalLabel = medicalConditions.length > 0 ? medicalConditions.join(', ') : undefined;
+  const isFormValid = !!weight && !!height;
 
-  // ─── API Call ─────────────────────────────────────────────────────────────
-
-  const handleCalculate = async () => {
+  const handleNext = async () => {
     if (!isFormValid) return;
+    if (!step1Draft) {
+      router.replace('/(onboarding)/step3');
+      return;
+    }
     setIsLoading(true);
     try {
       const payload = {
+        name: step1Draft.name,
+        dob: formatDobForApi(dob),
+        gender: gender.toLowerCase(),
         height: parseFloat(height),
         height_unit: heightUnit,
         weight: parseFloat(weight),
+        medical_conditions: medicalConditions.length > 0
+          ? medicalConditions.map((c) => c.toLowerCase())
+          : ['none'],
       };
 
-      console.log('📤 Step 2 payload:', payload);
-      const response = await api.post('/onboarding/step2/', payload);
-      const { bmi } = response.data;
+      console.log('📤 Step 1+2 combined payload:', payload);
+      await api.post('/onboarding/step1/', payload);
 
-      // Save to Redux so Step 3 can read it
-      dispatch(saveStep2({
-        height: payload.height,
-        height_unit: payload.height_unit,
-        weight: payload.weight,
-        bmi,
+      dispatch(saveStep1({
+        ...step1Draft,
+        ...payload,
       }));
 
-      // Navigate to Step 3 (result screen)
       router.push('/(onboarding)/step3');
     } catch (error: any) {
       console.log('❌ Step 2 error:', JSON.stringify(error?.response?.data));
-      Alert.alert(
-        'Error',
-        error?.response?.data?.message || 'Something went wrong. Please try again.',
-      );
+      Alert.alert('Error', error?.response?.data?.message || 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSkip = () => {
-    router.push('/(onboarding)/step3');
-  };
-
   return (
-    <SafeAreaView style={styles.safe}>
+    <OnboardingScaffold
+      totalSteps={TOTAL_STEPS}
+      currentStep={2}
+      eyebrow="Profile Details"
+      title={"Let's get to know each other before\nwe dive into the details"}
+      primaryLabel="Next"
+      onPrimaryPress={handleNext}
+      primaryDisabled={!isFormValid}
+      primaryLoading={isLoading}
+      onPrevious={() => router.back()}
+    >
+      <SimpleDateSelector date={dob} onChange={setDob} />
 
-      {/* Progress — step 2 of 3 */}
-      <View style={styles.progressWrapper}>
-        <OnboardingProgress totalSteps={3} currentStep={2} />
-      </View>
+      <TouchableOpacity style={styles.selectorRow} onPress={() => setShowGender(true)} activeOpacity={0.75}>
+        <Text style={styles.selectorValue}>{gender}</Text>
+        <Text style={styles.chevron}>›</Text>
+      </TouchableOpacity>
 
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-      >
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {/* Logo */}
-          <View style={styles.logoContainer}>
-            <Image
-              source={require('../../../assets/images/logo.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
-
-          <Text style={styles.title}>BMI</Text>
-          <Text style={styles.subtitle}>Calculate your BMI</Text>
-
-          {/* Fields */}
-          <View style={styles.fieldsContainer}>
-            <FieldRow icon="↕">
-              <TextInput
-                style={styles.editableInput}
-                value={`${height}.0${heightUnit}`}
-                editable={false}
-              />
-              <TouchableOpacity
-                style={styles.chevronBtn}
-                onPress={() => setShowHeightUnit(true)}
-              >
-                <Text style={styles.chevron}>›</Text>
-              </TouchableOpacity>
-            </FieldRow>
-
-            <FieldRow icon="⚖️">
-              <TextInput
-                style={styles.editableInput}
-                value={`${weight} kg`}
-                editable={false}
-              />
-              <Text style={styles.chevron}>›</Text>
-            </FieldRow>
-          </View>
-
-          {/* About BMI */}
-          <View style={styles.aboutContainer}>
-            <Text style={styles.aboutTitle}>About BMI</Text>
-            <Text style={styles.aboutBody}>
-              Body mass index (BMI) is a measurement that compares a person's
-              weight to their height. It's a quick and inexpensive way to screen
-              for weight categories like underweight, overweight, and obesity.
-            </Text>
-          </View>
-
-        </ScrollView>
-
-        {/* Fixed bottom buttons */}
-        <View style={styles.bottomBar}>
-          <PrimaryButton
-            title="Calculate BMI"
-            onPress={handleCalculate}
-            disabled={!isFormValid || isLoading}
-            loading={isLoading}
-          />
-          <TouchableOpacity
-            style={styles.skipButton}
-            onPress={handleSkip}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.skipText}>Skip</Text>
-          </TouchableOpacity>
+      <FieldRow icon="⚖️">
+        <TextInput
+          style={styles.editableInput}
+          value={weight}
+          onChangeText={(t) => setWeight(t.replace(/[^0-9.]/g, ''))}
+          placeholder="Weight"
+          placeholderTextColor={Colors.textPlaceholder}
+          keyboardType="decimal-pad"
+          returnKeyType="done"
+          maxLength={6}
+        />
+        <View style={styles.unitBadge}>
+          <Text style={styles.unitBadgeText}>kg</Text>
         </View>
+      </FieldRow>
 
-      </KeyboardAvoidingView>
+      <FieldRow icon="↕">
+        <TextInput
+          style={styles.editableInput}
+          value={height}
+          onChangeText={(t) => setHeight(t.replace(/[^0-9.]/g, ''))}
+          placeholder="Height"
+          placeholderTextColor={Colors.textPlaceholder}
+          keyboardType="decimal-pad"
+          returnKeyType="done"
+          maxLength={6}
+        />
+        <TouchableOpacity style={styles.unitDropdown} onPress={() => setShowHeightUnit(true)}>
+          <Text style={styles.unitDropdownText}>{heightUnit}</Text>
+          <Text style={styles.unitDropdownArrow}>▾</Text>
+        </TouchableOpacity>
+      </FieldRow>
 
+      <TouchableOpacity style={styles.selectorRow} onPress={() => setShowMedical(true)} activeOpacity={0.75}>
+        <Text style={[styles.selectorValue, !medicalLabel && styles.selectorPlaceholder]} numberOfLines={1}>
+          {medicalLabel ?? 'Medical Condition'}
+        </Text>
+        <Text style={styles.chevron}>›</Text>
+      </TouchableOpacity>
+
+      <DropdownModal
+        visible={showGender}
+        title="Select Gender"
+        options={GENDERS}
+        selected={gender}
+        onSelect={setGender}
+        onClose={() => setShowGender(false)}
+      />
       <DropdownModal
         visible={showHeightUnit}
         title="Height Unit"
@@ -181,91 +155,53 @@ const OnboardingStep2Screen: React.FC = () => {
         onSelect={setHeightUnit}
         onClose={() => setShowHeightUnit(false)}
       />
-
-    </SafeAreaView>
+      <MedicalConditionModal
+        visible={showMedical}
+        initialSelected={medicalConditions}
+        onConfirm={setMedicalConditions}
+        onClose={() => setShowMedical(false)}
+      />
+    </OnboardingScaffold>
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
-  flex: { flex: 1 },
-
-  progressWrapper: {
-    paddingTop: Platform.OS === 'android' ? Spacing.lg : Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.sm,
-  },
-  scrollContent: {
-    paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.lg,
-    alignItems: 'center',
-  },
-
-  logoContainer: { marginTop: Spacing.md, marginBottom: Spacing.lg, alignItems: 'center' },
-  logo: { width: 160, height: 60 },
-
-  title: {
-    fontSize: Fonts.sizes.xxl,
-    fontWeight: '700',
-    color: Colors.textDark,
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: Fonts.sizes.md,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
-  },
-
-  fieldsContainer: { width: '100%', gap: 12, marginBottom: Spacing.xl },
-
-  editableInput: {
-    flex: 1,
-    fontSize: Fonts.sizes.md,
-    color: Colors.textDark,
-    paddingVertical: 4,
-  },
-
-  chevronBtn: { padding: 4 },
-  chevron: { fontSize: 22, color: Colors.textMuted },
-
-  aboutContainer: { width: '100%', marginBottom: Spacing.lg },
-  aboutTitle: {
-    fontSize: Fonts.sizes.lg,
-    fontWeight: '700',
-    color: Colors.textDark,
-    marginBottom: Spacing.sm,
-  },
-  aboutBody: {
-    fontSize: Fonts.sizes.sm,
-    color: Colors.textMuted,
-    lineHeight: 22,
-    textAlign: 'justify',
-  },
-
-  bottomBar: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
-    paddingBottom: Platform.OS === 'ios' ? Spacing.md : Spacing.lg,
-    backgroundColor: Colors.background,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    gap: 10,
-  },
-  skipButton: {
-    height: 56,
-    width: '100%',
-    borderRadius: BorderRadius.full,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    justifyContent: 'center',
+  selectorRow: {
+    flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.inputBorder,
+    paddingHorizontal: Spacing.md,
+    minHeight: 56,
+    gap: Spacing.sm,
   },
-  skipText: { fontSize: Fonts.sizes.md, color: Colors.primary, fontWeight: '600' },
+  selectorValue: { flex: 1, fontSize: Fonts.sizes.md, color: Colors.textDark },
+  selectorPlaceholder: { color: Colors.textPlaceholder },
+  chevron: { fontSize: 22, color: Colors.textMuted },
+
+  editableInput: { flex: 1, fontSize: Fonts.sizes.md, color: Colors.textDark, paddingVertical: 4 },
+
+  unitBadge: {
+    backgroundColor: Colors.primaryMuted,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  unitBadgeText: { fontSize: Fonts.sizes.sm, color: Colors.primary, fontWeight: '600' },
+
+  unitDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryMuted,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    gap: 4,
+  },
+  unitDropdownText: { fontSize: Fonts.sizes.sm, color: Colors.primary, fontWeight: '600' },
+  unitDropdownArrow: { fontSize: 10, color: Colors.primary },
 });
 
 export default OnboardingStep2Screen;
