@@ -1,106 +1,29 @@
-// import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-
-// // ─── Types — match API payloads exactly ───────────────────────────────────────
-
-// export interface Step1Data {
-//   name: string;
-//   dob: string;           // "YYYY-MM-DD"
-//   gender: string;        // "male" | "female" | "other"
-//   height: number;
-//   height_unit: string;   // "cm" | "ft"
-//   weight: number;
-//   medical_conditions: string[];
-// }
-
-// export interface Step2Data {
-//   height: number;
-//   height_unit: string;
-//   weight: number;
-//   bmi: number | null;    // returned by API
-// }
-
-// export interface Step3Data {
-//   target_weight: number;
-// }
-
-// interface OnboardingState {
-//   step1: Step1Data | null;
-//   step2: Step2Data | null;
-//   step3: Step3Data | null;
-//   isLoading: boolean;
-//   error: string | null;
-// }
-
-// // ─── Initial state ────────────────────────────────────────────────────────────
-
-// const initialState: OnboardingState = {
-//   step1: null,
-//   step2: null,
-//   step3: null,
-//   isLoading: false,
-//   error: null,
-// };
-
-// // ─── Slice ────────────────────────────────────────────────────────────────────
-
-// const onboardingSlice = createSlice({
-//   name: 'onboarding',
-//   initialState,
-//   reducers: {
-//     saveStep1(state, action: PayloadAction<Step1Data>) {
-//       state.step1 = action.payload;
-//       state.error = null;
-//     },
-//     saveStep2(state, action: PayloadAction<Step2Data>) {
-//       state.step2 = action.payload;
-//       state.error = null;
-//     },
-//     saveStep3(state, action: PayloadAction<Step3Data>) {
-//       state.step3 = action.payload;
-//       state.error = null;
-//     },
-//     setLoading(state, action: PayloadAction<boolean>) {
-//       state.isLoading = action.payload;
-//     },
-//     setError(state, action: PayloadAction<string | null>) {
-//       state.error = action.payload;
-//       state.isLoading = false;
-//     },
-//     resetOnboarding() {
-//       return initialState;
-//     },
-//   },
-// });
-
-// export const {
-//   saveStep1, saveStep2, saveStep3,
-//   setLoading, setError, resetOnboarding,
-// } = onboardingSlice.actions;
-
-// export default onboardingSlice.reducer;
-
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 // ─── Types — match API payloads exactly ───────────────────────────────────────
 
-// Draft captured on screen 1 (name/email/phone) before the combined step1 API call
+// Draft captured on screen 1 (name/email/phone) before the /onboarding/step1/ call
 export interface Step1Draft {
   name: string;
   email: string;
   phoneNumber: string;
 }
 
-// Sent together to POST /onboarding/step1/ once screen 2 (Profile Details) is submitted
+// Confirmed once POST /onboarding/step1/ succeeds — Basic Info only (7%)
 export interface Step1Data {
   name: string;
   email: string;
   phoneNumber: string;
-  dob: string;           // "YYYY-MM-DD"
-  gender: string;        // "male" | "female" | "other" | "prefer not to say"
+}
+
+// Sent to POST /onboarding/step2/ — Profile Details (14%)
+export interface ProfileDetailsData {
+  dob: string;            // "YYYY-MM-DD"
+  gender: string;         // "male" | "female" | "other"
   height: number;
-  height_unit: string;   // "cm" | "ft"
+  height_unit: string;    // "cm" | "ft"
   weight: number;
-  medical_conditions: string[];
+  bmi?: number | null;    // returned by the API, not sent
 }
 
 export interface DietaryPreferenceData {
@@ -112,12 +35,12 @@ export interface AllergiesData {
 }
 
 export interface HealthConditionsData {
-  conditions: string[]; // multi
+  conditions: string[]; // 'diabetes_pcod_thyroid_hypertension' | 'fatty_liver_constipation_ibs' | 'arthritis_osteoporosis' | 'migraine' | 'others' | 'none'
   reportFileName?: string | null;
 }
 
 export interface FamilyHistoryData {
-  conditions: string[];
+  conditions: string[]; // same choices as HealthConditionsData
 }
 
 export interface ActivityLevelData {
@@ -125,7 +48,7 @@ export interface ActivityLevelData {
 }
 
 export interface ExerciseData {
-  exercisesRegularly: boolean;
+  exercisesRegularly: boolean; // send as "yes" | "no" in the API payload
 }
 
 export interface SleepData {
@@ -142,15 +65,17 @@ export interface AlcoholData {
 
 export interface GoalData {
   goal: string; // 'weight_lose' | 'weight_gain' | 'lifestyle_management' | 'stamina_mobility' | 'strength_conditioning'
+  targetWeight?: number | null;
 }
 
 export interface LookingForData {
-  option: string; // 'diet_and_training' | 'tailored_plans' | 'personal_training_online' | 'both'
+  option: string; // see note on backend LOOKING_FOR_CHOICES — confirm final values when we reach this screen
 }
 
 interface OnboardingState {
   step1Draft: Step1Draft | null;
   step1: Step1Data | null;
+  profileDetails: ProfileDetailsData | null;
   dietaryPreference: DietaryPreferenceData | null;
   allergies: AllergiesData | null;
   healthConditions: HealthConditionsData | null;
@@ -171,6 +96,7 @@ interface OnboardingState {
 const initialState: OnboardingState = {
   step1Draft: null,
   step1: null,
+  profileDetails: null,
   dietaryPreference: null,
   allergies: null,
   healthConditions: null,
@@ -198,6 +124,10 @@ const onboardingSlice = createSlice({
     },
     saveStep1(state, action: PayloadAction<Step1Data>) {
       state.step1 = action.payload;
+      state.error = null;
+    },
+    saveProfileDetails(state, action: PayloadAction<ProfileDetailsData>) {
+      state.profileDetails = action.payload;
       state.error = null;
     },
     saveDietaryPreference(state, action: PayloadAction<DietaryPreferenceData>) {
@@ -249,6 +179,7 @@ const onboardingSlice = createSlice({
 export const {
   saveStep1Draft,
   saveStep1,
+  saveProfileDetails,
   saveDietaryPreference,
   saveAllergies,
   saveHealthConditions,

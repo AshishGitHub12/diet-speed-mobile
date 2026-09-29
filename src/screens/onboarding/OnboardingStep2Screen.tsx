@@ -9,11 +9,16 @@ import api from '@/src/services/api';
 import OnboardingScaffold from '@/src/components/ui/OnboardingScaffold';
 import FieldRow from '@/src/components/ui/Fieldrow';
 import DropdownModal from '@/src/components/ui/Dropdownmodal';
-import MedicalConditionModal from '@/src/components/ui/Medicalconditionmodal';
-import SimpleDateSelector, { MONTHS } from '@/src/components/ui/SimpleDateSelector';
+import SimpleDateSelector from '@/src/components/ui/SimpleDateSelector';
 
 const TOTAL_STEPS = 14;
 const GENDERS = ['Male', 'Female', 'Other', 'Prefer not to say'];
+const GENDER_ICONS: Record<string, string> = {
+  Male: '♂️',
+  Female: '♀️',
+  Other: '⚧️',
+  'Prefer not to say': '🙈',
+};
 const HEIGHT_UNITS = ['cm', 'ft'];
 
 const formatDobForApi = (d: Date): string => {
@@ -33,14 +38,11 @@ const OnboardingStep2Screen: React.FC = () => {
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
   const [heightUnit, setHeightUnit] = useState('cm');
-  const [medicalConditions, setMedicalConditions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const [showGender, setShowGender] = useState(false);
   const [showHeightUnit, setShowHeightUnit] = useState(false);
-  const [showMedical, setShowMedical] = useState(false);
 
-  const medicalLabel = medicalConditions.length > 0 ? medicalConditions.join(', ') : undefined;
   const isFormValid = !!weight && !!height;
 
   const handleNext = async () => {
@@ -58,9 +60,9 @@ const OnboardingStep2Screen: React.FC = () => {
         height: parseFloat(height),
         height_unit: heightUnit,
         weight: parseFloat(weight),
-        medical_conditions: medicalConditions.length > 0
-          ? medicalConditions.map((c) => c.toLowerCase())
-          : ['none'],
+        // Medical conditions are collected later (step 5), but the step1
+        // endpoint still expects this key.
+        medical_conditions: ['none'],
       };
 
       console.log('📤 Step 1+2 combined payload:', payload);
@@ -94,7 +96,9 @@ const OnboardingStep2Screen: React.FC = () => {
     >
       <SimpleDateSelector date={dob} onChange={setDob} />
 
+      {/* Gender — icon changes with selection */}
       <TouchableOpacity style={styles.selectorRow} onPress={() => setShowGender(true)} activeOpacity={0.75}>
+        <Text style={styles.selectorIcon}>{GENDER_ICONS[gender]}</Text>
         <Text style={styles.selectorValue}>{gender}</Text>
         <Text style={styles.chevron}>›</Text>
       </TouchableOpacity>
@@ -132,17 +136,11 @@ const OnboardingStep2Screen: React.FC = () => {
         </TouchableOpacity>
       </FieldRow>
 
-      <TouchableOpacity style={styles.selectorRow} onPress={() => setShowMedical(true)} activeOpacity={0.75}>
-        <Text style={[styles.selectorValue, !medicalLabel && styles.selectorPlaceholder]} numberOfLines={1}>
-          {medicalLabel ?? 'Medical Condition'}
-        </Text>
-        <Text style={styles.chevron}>›</Text>
-      </TouchableOpacity>
-
       <DropdownModal
         visible={showGender}
         title="Select Gender"
         options={GENDERS}
+        optionIcons={GENDER_ICONS}
         selected={gender}
         onSelect={setGender}
         onClose={() => setShowGender(false)}
@@ -154,12 +152,6 @@ const OnboardingStep2Screen: React.FC = () => {
         selected={heightUnit}
         onSelect={setHeightUnit}
         onClose={() => setShowHeightUnit(false)}
-      />
-      <MedicalConditionModal
-        visible={showMedical}
-        initialSelected={medicalConditions}
-        onConfirm={setMedicalConditions}
-        onClose={() => setShowMedical(false)}
       />
     </OnboardingScaffold>
   );
@@ -177,8 +169,8 @@ const styles = StyleSheet.create({
     minHeight: 56,
     gap: Spacing.sm,
   },
+  selectorIcon: { fontSize: 20, width: 28, textAlign: 'center' },
   selectorValue: { flex: 1, fontSize: Fonts.sizes.md, color: Colors.textDark },
-  selectorPlaceholder: { color: Colors.textPlaceholder },
   chevron: { fontSize: 22, color: Colors.textMuted },
 
   editableInput: { flex: 1, fontSize: Fonts.sizes.md, color: Colors.textDark, paddingVertical: 4 },
