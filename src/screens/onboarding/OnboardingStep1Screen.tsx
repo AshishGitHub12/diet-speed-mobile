@@ -5,8 +5,8 @@ import { useRouter } from 'expo-router';
 import { Colors, Fonts } from '@/src/constants/theme';
 import { useAppDispatch, useAppSelector } from '@/src/redux/hooks';
 import { saveStep1Draft, setLoading, setError } from '@/src/redux/onboardingSlice';
-import { submitOnboardingStep } from '@/src/services/onboardingApi';
-import { setCurrentOnboardingStep } from '@/src/utils/onboardingStore';
+import api from '@/src/services/api';
+import { markOnboardingStepSubmitted, setCurrentOnboardingStep } from '@/src/utils/onboardingStore';
 import OnboardingScaffold from '@/src/components/ui/OnboardingScaffold';
 import InputField from '@/src/components/ui/InputField';
 
@@ -28,9 +28,15 @@ const OnboardingStep1Screen: React.FC = () => {
   );
   const isEmailPrefilled = registeredEmail.trim().length > 0;
 
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState(registeredEmail.trim().toLowerCase());
-  const [phoneNumber, setPhoneNumber] = useState('');
+  // Restore whatever was already entered, so tapping "Previous" from Step 2
+  // doesn't come back to a blank form.
+  const step1Draft = useAppSelector((state: any) => state.onboarding.step1Draft);
+
+  const [name, setName] = useState(step1Draft?.name ?? '');
+  const [email, setEmail] = useState(
+    step1Draft?.email || registeredEmail.trim().toLowerCase(),
+  );
+  const [phoneNumber, setPhoneNumber] = useState(step1Draft?.phoneNumber ?? '');
   const [phoneTouched, setPhoneTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -64,20 +70,30 @@ const OnboardingStep1Screen: React.FC = () => {
       // Basic Info is its own endpoint now (7%). Profile Details (dob/gender/
       // height/weight) is a SEPARATE call to /onboarding/step2/ from the next
       // screen — it is no longer bundled into this request.
-      await submitOnboardingStep({
-        step: 1,
-        endpoint: '/onboarding/step1/',
-        payload: {
-          name: trimmedName,
-          email: trimmedEmail,
-          phone_number: phoneNumber,
-        },
-      });
+      const payload = {
+        name: trimmedName,
+        email: trimmedEmail,
+        phone_number: phoneNumber,
+      };
 
+      console.log('📤 Step 1 (Basic Info) payload:', payload);
+
+      // Sent directly with api.post — NOT the submitOnboardingStep "skip if
+      // already submitted" helper. That helper is meant for one-time actions;
+      // here the user can go back and edit name/email/phone, so every Next
+      // press must actually reach the backend with the latest values.
+      const { data, status } = await api.post('/onboarding/step1/', payload);
+
+      console.log('📥 Step 1 response status:', status);
+      console.log('📥 Step 1 response data:', JSON.stringify(data, null, 2));
+
+      await markOnboardingStepSubmitted(1);
       await setCurrentOnboardingStep(2);
       router.push('/(onboarding)/step2');
     } catch (err: any) {
-      dispatch(setError(err?.message ?? 'Something went wrong. Please try again.'));
+      console.log('❌ Step 1 error status:', err?.response?.status);
+      console.log('❌ Step 1 error data:', JSON.stringify(err?.response?.data));
+      dispatch(setError(err?.response?.data?.message ?? err?.message ?? 'Something went wrong. Please try again.'));
     } finally {
       setSubmitting(false);
       dispatch(setLoading(false));

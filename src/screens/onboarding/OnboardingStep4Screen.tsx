@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { useAppDispatch } from '@/src/redux/hooks';
+import { useAppDispatch, useAppSelector } from '@/src/redux/hooks';
 import { saveAllergies } from '@/src/redux/onboardingSlice';
 import api from '@/src/services/api';
+import { markOnboardingStepSubmitted, setCurrentOnboardingStep } from '@/src/utils/onboardingStore';
 import OnboardingScaffold from '@/src/components/ui/OnboardingScaffold';
 import OptionCard from '@/src/components/ui/OptionCard';
 
@@ -23,7 +24,10 @@ const OPTIONS = [
 const OnboardingStep4Screen: React.FC = () => {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const [selected, setSelected] = useState<string[]>([]);
+
+  // Restore previous selection so "Previous" from Step 5 isn't a blank screen.
+  const allergiesState = useAppSelector((state: any) => state.onboarding.allergies);
+  const [selected, setSelected] = useState<string[]>(allergiesState?.allergies ?? []);
   const [isLoading, setIsLoading] = useState(false);
 
   const toggle = (value: string) => {
@@ -39,23 +43,31 @@ const OnboardingStep4Screen: React.FC = () => {
     });
   };
 
-  // const handleNext = async () => {
-  //   if (selected.length === 0) return;
-  //   setIsLoading(true);
-  //   try {
-  //     await api.post('/onboarding/step4/', { allergies: selected });
-  //     dispatch(saveAllergies({ allergies: selected }));
-  //     router.push('/(onboarding)/step5');
-  //   } catch (error: any) {
-  //     Alert.alert('Error', error?.response?.data?.message || 'Something went wrong. Please try again.');
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
+  const handleNext = async () => {
+    if (selected.length === 0 || isLoading) return;
+    setIsLoading(true);
+    try {
+      // NOTE: the backend serializer field is `food_allergies`, not `allergies`.
+      const payload = { food_allergies: selected };
+      console.log('📤 Step 4 (Allergies) payload:', payload);
 
-  const handleNext = () => {
-    router.push('/(onboarding)/step5');
-  }
+      const { data, status } = await api.post('/onboarding/step4/', payload);
+      console.log('📥 Step 4 response status:', status);
+      console.log('📥 Step 4 response data:', JSON.stringify(data, null, 2));
+
+      dispatch(saveAllergies({ allergies: selected }));
+      await markOnboardingStepSubmitted(4);
+      await setCurrentOnboardingStep(5);
+
+      router.push('/(onboarding)/step5');
+    } catch (error: any) {
+      console.log('❌ Step 4 error status:', error?.response?.status);
+      console.log('❌ Step 4 error data:', JSON.stringify(error?.response?.data));
+      Alert.alert('Error', error?.response?.data?.message || 'Something went wrong. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <OnboardingScaffold
@@ -67,7 +79,13 @@ const OnboardingStep4Screen: React.FC = () => {
       onPrimaryPress={handleNext}
       primaryDisabled={selected.length === 0}
       primaryLoading={isLoading}
-      onPrevious={() => router.back()}
+      onPrevious={() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/(onboarding)/step3');
+        }
+      }}
     >
       {OPTIONS.map((opt) => (
         <OptionCard

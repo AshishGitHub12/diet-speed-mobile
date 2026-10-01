@@ -4,8 +4,9 @@ import { useRouter } from 'expo-router';
 
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
 import { useAppDispatch, useAppSelector } from '@/src/redux/hooks';
-import { saveStep1 } from '@/src/redux/onboardingSlice';
+import { saveProfileDetails, setLoading, setError } from '@/src/redux/onboardingSlice';
 import api from '@/src/services/api';
+import { markOnboardingStepSubmitted, setCurrentOnboardingStep } from '@/src/utils/onboardingStore';
 import OnboardingScaffold from '@/src/components/ui/OnboardingScaffold';
 import FieldRow from '@/src/components/ui/Fieldrow';
 import DropdownModal from '@/src/components/ui/Dropdownmodal';
@@ -28,16 +29,41 @@ const formatDobForApi = (d: Date): string => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
+// API stores gender lowercase ("male", "prefer not to say"); the UI displays
+// it Title Case. Convert both directions so restoring from Redux matches
+// what GENDERS/GENDER_ICONS expect.
+const GENDER_API_TO_LABEL: Record<string, string> = {
+  male: 'Male',
+  female: 'Female',
+  other: 'Other',
+  'prefer not to say': 'Prefer not to say',
+};
+
+const parseDobFromApi = (dobStr?: string | null): Date => {
+  if (!dobStr) return new Date(1996, 0, 1);
+  const parsed = new Date(dobStr);
+  return Number.isNaN(parsed.getTime()) ? new Date(1996, 0, 1) : parsed;
+};
+
 const OnboardingStep2Screen: React.FC = () => {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const step1Draft = useAppSelector((state) => state.onboarding.step1Draft);
 
-  const [dob, setDob] = useState(new Date(1996, 0, 1));
-  const [gender, setGender] = useState('Male');
-  const [weight, setWeight] = useState('');
-  const [height, setHeight] = useState('');
-  const [heightUnit, setHeightUnit] = useState('cm');
+  // Restore whatever was already entered/saved, so "Previous" from Step 3
+  // doesn't come back to a blank/default form.
+  const profileDetails = useAppSelector((state: any) => state.onboarding.profileDetails);
+
+  const [dob, setDob] = useState(parseDobFromApi(profileDetails?.dob));
+  const [gender, setGender] = useState(
+    GENDER_API_TO_LABEL[profileDetails?.gender ?? ''] ?? 'Male',
+  );
+  const [weight, setWeight] = useState(
+    profileDetails?.weight != null ? String(profileDetails.weight) : '',
+  );
+  const [height, setHeight] = useState(
+    profileDetails?.height != null ? String(profileDetails.height) : '',
+  );
+  const [heightUnit, setHeightUnit] = useState(profileDetails?.height_unit ?? 'cm');
   const [isLoading, setIsLoading] = useState(false);
 
   const [showGender, setShowGender] = useState(false);
@@ -46,39 +72,51 @@ const OnboardingStep2Screen: React.FC = () => {
   const isFormValid = !!weight && !!height;
 
   const handleNext = async () => {
-    if (!isFormValid) return;
-    if (!step1Draft) {
-      router.replace('/(onboarding)/step3');
-      return;
-    }
+    if (!isFormValid || isLoading) return;
+
     setIsLoading(true);
+    dispatch(setLoading(true));
+
     try {
+      // Step 2 (Profile Details, 14%) — its own call now. name/email/phone
+      // already went to /onboarding/step1/ on the previous screen, and
+      // medical/health conditions belong to step 5, not here.
       const payload = {
-        name: step1Draft.name,
         dob: formatDobForApi(dob),
         gender: gender.toLowerCase(),
         height: parseFloat(height),
         height_unit: heightUnit,
         weight: parseFloat(weight),
-        // Medical conditions are collected later (step 5), but the step1
-        // endpoint still expects this key.
-        medical_conditions: ['none'],
       };
 
-      console.log('📤 Step 1+2 combined payload:', payload);
-      await api.post('/onboarding/step1/', payload);
+      console.log('📤 Step 2 (Profile Details) payload:', payload);
 
-      dispatch(saveStep1({
-        ...step1Draft,
-        ...payload,
-      }));
+      const { data, status } = await api.post('/onboarding/step2/', payload);
+
+      console.log('📥 Step 2 response status:', status);
+      console.log('📥 Step 2 response data:', JSON.stringify(data, null, 2));
+      // Expect: { message: "Saved", data: { ...profile, bmi: <number> } }
+      // If data.data.bmi is null here, height/weight/height_unit didn't all
+      // reach the backend together — check the payload log above first.
+
+      await markOnboardingStepSubmitted(2);
+      await setCurrentOnboardingStep(3);
+
+      dispatch(saveProfileDetails({ ...payload, bmi: data?.data?.bmi ?? null }));
 
       router.push('/(onboarding)/step3');
     } catch (error: any) {
-      console.log('❌ Step 2 error:', JSON.stringify(error?.response?.data));
-      Alert.alert('Error', error?.response?.data?.message || 'Something went wrong. Please try again.');
+      const message = error?.response?.data?.message
+        || JSON.stringify(error?.response?.data)
+        || 'Something went wrong. Please try again.';
+
+      console.log('❌ Step 2 error status:', error?.response?.status);
+      console.log('❌ Step 2 error data:', JSON.stringify(error?.response?.data));
+      dispatch(setError(message));
+      Alert.alert('Error', message);
     } finally {
       setIsLoading(false);
+      dispatch(setLoading(false));
     }
   };
 
@@ -92,7 +130,16 @@ const OnboardingStep2Screen: React.FC = () => {
       onPrimaryPress={handleNext}
       primaryDisabled={!isFormValid}
       primaryLoading={isLoading}
-      onPrevious={() => router.back()}
+      onPrevious={() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          // No screen behind this one in the stack (e.g. reached Step 2
+          // directly via onboarding-resume, or a dev fast-refresh reset the
+          // stack) — fall back to an explicit route instead of crashing.
+          router.replace('/(onboarding)/step1');
+        }
+      }}
     >
       <SimpleDateSelector date={dob} onChange={setDob} />
 

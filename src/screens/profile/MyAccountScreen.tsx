@@ -6,26 +6,123 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import api from '@/src/services/api';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
 
+// ─── Types — matches the full ProfileSerializer response ──────────────────────
+
 interface Profile {
-  id: number; name: string; dob: string; gender: string;
-  height: number; height_unit: string; weight: number; bmi: number;
-  target_weight: number; medical_conditions: string[];
-  onboarding_completed: boolean; user: number;
+  id: number;
+  name: string;
+  email: string | null;
+  phone_number: string | null;
+  dob: string;
+  gender: string;
+  height: number;
+  height_unit: string;
+  weight: number;
+  bmi: number;
+  target_weight: number | null;
+  dietary_preference: string;
+  food_allergies: string[];
+  health_conditions: string[];
+  health_report: string | null; // URL string once uploaded
+  family_health_conditions: string[];
+  activity_level: string;
+  exercises_regularly: string; // "yes" | "no"
+  sleep_hours: string;
+  smokes: string;
+  consumes_alcohol: string;
+  goal: string;
+  looking_for: string;
+  onboarding_completed: boolean;
+  user: number;
 }
 
-const GENDER_OPTIONS  = ['male', 'female', 'other'];
-const HEIGHT_UNITS    = ['cm', 'ft'];
-const MEDICAL_OPTIONS = ['none','diabetes','hypertension','thyroid','pcod','heart disease','asthma'];
+type FieldType = 'text' | 'number' | 'select' | 'multi' | 'date';
+
+// ─── Option lists — must match UserProfile choices on the backend exactly ─────
+
+const GENDER_OPTIONS = ['male', 'female', 'other'];
+const HEIGHT_UNITS = ['cm', 'ft'];
+const DIETARY_OPTIONS = ['vegan', 'pure_vegetarian', 'ovo_vegetarian', 'non_vegetarian'];
+const ALLERGY_OPTIONS = ['dairy', 'eggs', 'fish', 'gluten', 'peanuts', 'others', 'none'];
+const HEALTH_CONDITION_OPTIONS = [
+  'diabetes_pcod_thyroid_hypertension',
+  'fatty_liver_constipation_ibs',
+  'arthritis_osteoporosis',
+  'migraine',
+  'others',
+  'none',
+];
+const ACTIVITY_OPTIONS = ['not_very_active', 'lightly_active', 'active', 'very_active'];
+const YES_NO_OPTIONS = ['yes', 'no'];
+const SLEEP_OPTIONS = ['less_than_4', '4_5', '6_7', '8_10'];
+const SMOKING_OPTIONS = ['yes', 'no', 'occasionally'];
+const ALCOHOL_OPTIONS = ['yes', 'no', 'socially'];
+const GOAL_OPTIONS = [
+  'weight_lose',
+  'weight_gain',
+  'lifestyle_management',
+  'stamina_mobility',
+  'strength_conditioning',
+];
+const LOOKING_FOR_OPTIONS = ['diet_and_training', 'personal_training_online', 'tailored_diet_plans', 'both'];
+
+// Pretty labels for raw choice values — same wording used in the onboarding screens.
+const LABELS: Record<string, string> = {
+  diabetes_pcod_thyroid_hypertension: 'Diabetes/PCOD/Thyroid/Hypertension',
+  fatty_liver_constipation_ibs: 'Fatty Liver/Constipation/IBS',
+  arthritis_osteoporosis: 'Arthritis/Osteoporosis',
+  migraine: 'Migraine',
+  others: 'Others',
+  none: 'None',
+  not_very_active: 'Not Very Active',
+  lightly_active: 'Lightly Active',
+  active: 'Active',
+  very_active: 'Very Active',
+  less_than_4: 'Less than 4 hours',
+  '4_5': '4-5 hours',
+  '6_7': '6-7 hours',
+  '8_10': '8-10 hours',
+  occasionally: 'Occasionally',
+  socially: 'Socially',
+  weight_lose: 'Weight Lose',
+  weight_gain: 'Weight Gain',
+  lifestyle_management: 'Lifestyle Management',
+  stamina_mobility: 'Stamina & Mobility',
+  strength_conditioning: 'Strength & Conditioning',
+  diet_and_training: 'Diet and Training Plans',
+  personal_training_online: 'Personal Training',
+  tailored_diet_plans: 'Diet and Tailored Plans',
+  both: 'Both Nutrition & Training',
+  vegan: 'Vegan',
+  pure_vegetarian: 'Pure Vegetarian',
+  ovo_vegetarian: 'Ovo Vegetarian',
+  non_vegetarian: 'Non Vegetarian',
+  dairy: 'Dairy',
+  eggs: 'Eggs',
+  fish: 'Fish',
+  gluten: 'Gluten',
+  peanuts: 'Peanuts',
+  yes: 'Yes',
+  no: 'No',
+};
+
+const prettyLabel = (value: string) => LABELS[value] ?? capitalize(value.replace(/_/g, ' '));
+const prettyList = (values: string[] | undefined) =>
+  values && values.length ? values.map(prettyLabel).join(', ') : 'None';
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(' ');
   if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
   return name[0]?.toUpperCase() ?? 'U';
 };
-const capitalize = (str: string) => str ? str.charAt(0).toUpperCase() + str.slice(1) : '—';
+function capitalize(str: string) {
+  return str ? str.charAt(0).toUpperCase() + str.slice(1) : '—';
+}
 
 // ─── Info Row ─────────────────────────────────────────────────────────────────
 
@@ -47,7 +144,7 @@ const InfoRow = ({ icon, label, value, onPress }: {
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 
 const EditModal = ({ visible, title, type, value, options = [], onClose, onSave }: {
-  visible: boolean; title: string; type: 'text'|'number'|'select'|'multi'|'date';
+  visible: boolean; title: string; type: FieldType;
   value: string; options?: string[]; onClose: () => void; onSave: (v: string) => void;
 }) => {
   const [localVal, setLocalVal] = useState(value);
@@ -102,7 +199,7 @@ const EditModal = ({ visible, title, type, value, options = [], onClose, onSave 
                     activeOpacity={0.7}
                   >
                     <Text style={[m.optionText, isActive && m.optionTextActive]}>
-                      {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                      {prettyLabel(opt)}
                     </Text>
                     <Ionicons
                       name={type === 'multi'
@@ -144,8 +241,7 @@ export default function MyAccountScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editField, setEditField] = useState<{
-    key: keyof Profile; label: string;
-    type: 'text'|'number'|'select'|'multi'|'date'; options?: string[];
+    key: keyof Profile; label: string; type: FieldType; options?: string[];
   } | null>(null);
 
   useEffect(() => { fetchProfile(); }, []);
@@ -156,7 +252,7 @@ export default function MyAccountScreen() {
     finally { setIsLoading(false); }
   };
 
-  const openEdit = (key: keyof Profile, label: string, type: 'text'|'number'|'select'|'multi'|'date', options?: string[]) => {
+  const openEdit = (key: keyof Profile, label: string, type: FieldType, options?: string[]) => {
     setEditField({ key, label, type, options });
     setModalVisible(true);
   };
@@ -164,18 +260,90 @@ export default function MyAccountScreen() {
   const handleSave = async (rawVal: string) => {
     if (!profile || !editField) return;
     setModalVisible(false);
+
     let parsedVal: any = rawVal;
     if (editField.type === 'number') {
       parsedVal = parseFloat(rawVal);
       if (isNaN(parsedVal)) { Alert.alert('Invalid', 'Please enter a valid number.'); return; }
     }
-    if (editField.key === 'medical_conditions') parsedVal = rawVal.split(',').map(v => v.trim()).filter(Boolean);
+    if (editField.type === 'multi') {
+      parsedVal = rawVal.split(',').map(v => v.trim()).filter(Boolean);
+    }
+
+    const previous = profile;
     const updated = { ...profile, [editField.key]: parsedVal };
     setProfileLocal(updated);
     setIsSaving(true);
-    try { await api.patch('/profile/', { [editField.key]: parsedVal }); }
-    catch { Alert.alert('Error', 'Failed to update.'); setProfileLocal(profile); }
-    finally { setIsSaving(false); }
+    try {
+      const { data } = await api.patch('/profile/', { [editField.key]: parsedVal });
+      // Trust the server's response (it recalculates bmi, etc.) over our
+      // optimistic local guess.
+      setProfileLocal(data);
+    } catch (err: any) {
+      console.log('❌ Profile update error:', JSON.stringify(err?.response?.data));
+      Alert.alert('Error', 'Failed to update.');
+      setProfileLocal(previous);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ─── Health report upload/replace ───────────────────────────────────────────
+
+  const handleReportPick = () => {
+    Alert.alert('Health Report', 'Choose how you want to add your report', [
+      { text: 'Take Photo', onPress: () => pickReport('camera') },
+      { text: 'Choose from Gallery', onPress: () => pickReport('gallery') },
+      { text: 'Upload PDF', onPress: () => pickReport('pdf') },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const pickReport = async (source: 'camera' | 'gallery' | 'pdf') => {
+    let uri: string | null = null;
+    let name = `report_${Date.now()}`;
+    let mimeType = 'application/octet-stream';
+
+    if (source === 'camera') {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) { Alert.alert('Permission needed', 'Camera access is required.'); return; }
+      const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+      if (result.canceled || !result.assets?.[0]) return;
+      uri = result.assets[0].uri;
+      name = result.assets[0].fileName ?? `${name}.jpg`;
+      mimeType = result.assets[0].mimeType ?? 'image/jpeg';
+    } else if (source === 'gallery') {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) { Alert.alert('Permission needed', 'Photo library access is required.'); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+      if (result.canceled || !result.assets?.[0]) return;
+      uri = result.assets[0].uri;
+      name = result.assets[0].fileName ?? `${name}.jpg`;
+      mimeType = result.assets[0].mimeType ?? 'image/jpeg';
+    } else {
+      const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf' });
+      if (result.canceled || !result.assets?.[0]) return;
+      uri = result.assets[0].uri;
+      name = result.assets[0].name;
+      mimeType = result.assets[0].mimeType ?? 'application/pdf';
+    }
+
+    if (!profile) return;
+    const formData = new FormData();
+    formData.append('health_report', { uri, name, type: mimeType } as any);
+
+    setIsSaving(true);
+    try {
+      const { data } = await api.patch('/profile/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setProfileLocal(data);
+    } catch (err: any) {
+      console.log('❌ Report upload error:', JSON.stringify(err?.response?.data));
+      Alert.alert('Error', 'Failed to upload report.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (isLoading) return (
@@ -185,8 +353,8 @@ export default function MyAccountScreen() {
   );
 
   const currentEditValue = editField
-    ? editField.key === 'medical_conditions'
-      ? (profile?.medical_conditions ?? []).join(', ')
+    ? Array.isArray(profile?.[editField.key])
+      ? (profile?.[editField.key] as unknown as string[]).join(', ')
       : String(profile?.[editField.key] ?? '')
     : '';
 
@@ -214,9 +382,11 @@ export default function MyAccountScreen() {
 
         <Text style={styles.sectionTitle}>Personal Info</Text>
         <View style={styles.group}>
-          <InfoRow icon="person-outline"      label="Full Name"     value={profile?.name ?? ''}                    onPress={() => openEdit('name',   'Full Name',     'text')} />
-          <InfoRow icon="calendar-outline"    label="Date of Birth" value={profile?.dob ?? ''}                     onPress={() => openEdit('dob',    'Date of Birth', 'date')} />
-          <InfoRow icon="male-female-outline" label="Gender"        value={capitalize(profile?.gender ?? '')}      onPress={() => openEdit('gender', 'Gender',        'select', GENDER_OPTIONS)} />
+          <InfoRow icon="person-outline"      label="Full Name"     value={profile?.name ?? ''}                 onPress={() => openEdit('name',  'Full Name',  'text')} />
+          <InfoRow icon="mail-outline"        label="Email"         value={profile?.email ?? ''}                onPress={() => openEdit('email', 'Email',     'text')} />
+          <InfoRow icon="call-outline"        label="Phone Number"  value={profile?.phone_number ?? ''}         onPress={() => openEdit('phone_number', 'Phone Number', 'text')} />
+          <InfoRow icon="calendar-outline"    label="Date of Birth" value={profile?.dob ?? ''}                  onPress={() => openEdit('dob',    'Date of Birth', 'date')} />
+          <InfoRow icon="male-female-outline" label="Gender"        value={capitalize(profile?.gender ?? '')}   onPress={() => openEdit('gender', 'Gender', 'select', GENDER_OPTIONS)} />
         </View>
 
         <Text style={styles.sectionTitle}>Body Metrics</Text>
@@ -239,13 +409,95 @@ export default function MyAccountScreen() {
           </View>
         </View>
 
+        <Text style={styles.sectionTitle}>Dietary</Text>
+        <View style={styles.group}>
+          <InfoRow
+            icon="restaurant-outline"
+            label="Dietary Preference"
+            value={profile?.dietary_preference ? prettyLabel(profile.dietary_preference) : ''}
+            onPress={() => openEdit('dietary_preference', 'Dietary Preference', 'select', DIETARY_OPTIONS)}
+          />
+          <InfoRow
+            icon="warning-outline"
+            label="Food Allergies"
+            value={prettyList(profile?.food_allergies)}
+            onPress={() => openEdit('food_allergies', 'Food Allergies', 'multi', ALLERGY_OPTIONS)}
+          />
+        </View>
+
         <Text style={styles.sectionTitle}>Health</Text>
         <View style={styles.group}>
           <InfoRow
             icon="medkit-outline"
-            label="Medical Conditions"
-            value={profile?.medical_conditions?.length ? profile.medical_conditions.map(c => capitalize(c)).join(', ') : 'None'}
-            onPress={() => openEdit('medical_conditions', 'Medical Conditions', 'multi', MEDICAL_OPTIONS)}
+            label="Health Conditions"
+            value={prettyList(profile?.health_conditions)}
+            onPress={() => openEdit('health_conditions', 'Health Conditions', 'multi', HEALTH_CONDITION_OPTIONS)}
+          />
+          <InfoRow
+            icon="people-outline"
+            label="Family Health History"
+            value={prettyList(profile?.family_health_conditions)}
+            onPress={() => openEdit('family_health_conditions', 'Family Health History', 'multi', HEALTH_CONDITION_OPTIONS)}
+          />
+          <TouchableOpacity style={styles.infoRow} onPress={handleReportPick} activeOpacity={0.7}>
+            <View style={styles.iconBox}>
+              <Ionicons name="document-attach-outline" size={18} color={Colors.primary} />
+            </View>
+            <View style={styles.infoCenter}>
+              <Text style={styles.infoLabel}>Health Report</Text>
+              <Text style={styles.infoValue}>{profile?.health_report ? 'Attached — tap to replace' : 'None — tap to upload'}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.sectionTitle}>Lifestyle</Text>
+        <View style={styles.group}>
+          <InfoRow
+            icon="walk-outline"
+            label="Activity Level"
+            value={profile?.activity_level ? prettyLabel(profile.activity_level) : ''}
+            onPress={() => openEdit('activity_level', 'Activity Level', 'select', ACTIVITY_OPTIONS)}
+          />
+          <InfoRow
+            icon="barbell-outline"
+            label="Exercises Regularly"
+            value={profile?.exercises_regularly ? prettyLabel(profile.exercises_regularly) : ''}
+            onPress={() => openEdit('exercises_regularly', 'Exercises Regularly', 'select', YES_NO_OPTIONS)}
+          />
+          <InfoRow
+            icon="moon-outline"
+            label="Sleep"
+            value={profile?.sleep_hours ? prettyLabel(profile.sleep_hours) : ''}
+            onPress={() => openEdit('sleep_hours', 'Sleep', 'select', SLEEP_OPTIONS)}
+          />
+          <InfoRow
+            icon="flame-outline"
+            label="Smoking"
+            value={profile?.smokes ? prettyLabel(profile.smokes) : ''}
+            onPress={() => openEdit('smokes', 'Smoking', 'select', SMOKING_OPTIONS)}
+          />
+          <InfoRow
+            icon="wine-outline"
+            label="Alcohol"
+            value={profile?.consumes_alcohol ? prettyLabel(profile.consumes_alcohol) : ''}
+            onPress={() => openEdit('consumes_alcohol', 'Alcohol', 'select', ALCOHOL_OPTIONS)}
+          />
+        </View>
+
+        <Text style={styles.sectionTitle}>Goals</Text>
+        <View style={styles.group}>
+          <InfoRow
+            icon="trophy-outline"
+            label="Goal"
+            value={profile?.goal ? prettyLabel(profile.goal) : ''}
+            onPress={() => openEdit('goal', 'Goal', 'select', GOAL_OPTIONS)}
+          />
+          <InfoRow
+            icon="compass-outline"
+            label="Looking For"
+            value={profile?.looking_for ? prettyLabel(profile.looking_for) : ''}
+            onPress={() => openEdit('looking_for', 'Looking For', 'select', LOOKING_FOR_OPTIONS)}
           />
         </View>
 

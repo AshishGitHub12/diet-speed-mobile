@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,12 @@ import {
   ImageSourcePropType
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAppDispatch } from '@/src/redux/hooks';
 import { logout } from '@/src/redux/authSlice';
 import { setProfile, resetUser } from '@/src/redux/userSlice';
+import { resetOnboarding } from '@/src/redux/onboardingSlice';
+import { clearOnboardingProgress } from '@/src/utils/onboardingStore';
 import { clearTokens } from '@/src/utils/secureStore';
 import api from '@/src/services/api';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
@@ -81,11 +83,7 @@ export default function ProfileScreen() {
   const [profile, setProfileLocal] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       const res = await api.get('/profile/');
       setProfileLocal(res.data);
@@ -95,7 +93,17 @@ export default function ProfileScreen() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [dispatch]);
+
+  // Refetch every time this screen regains focus, not just on first mount —
+  // so editing a field in My Account and navigating back here shows the
+  // updated value immediately instead of whatever was loaded the first time
+  // this screen mounted.
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [fetchProfile])
+  );
 
   // ─── Logout ────────────────────────────────────────────────────────────────
 
@@ -111,10 +119,26 @@ export default function ProfileScreen() {
           onPress: async () => {
             // Clear token from device storage
             await clearTokens();
-            // Reset only auth + user cache in Redux
-            // onboarding & weight data stays — server has it, re-fetched on next login
+
+            // Reset auth + user cache in Redux
             dispatch(logout());
             dispatch(resetUser());
+
+            // IMPORTANT: onboarding answers are NOT re-fetched from the
+            // server on next login — they only ever enter this slice via
+            // each onboarding screen's own submit call, and every screen
+            // pre-fills itself from this slice on mount (so "Previous"
+            // works). Without clearing it here, the next person to log in
+            // on this device sees the previous user's onboarding answers.
+            dispatch(resetOnboarding());
+
+            // Same issue for the SecureStore-persisted resume flags
+            // (current step, which steps were already submitted) — these
+            // are meant to survive app restarts for the SAME user, so they
+            // must be cleared explicitly on logout, not just on onboarding
+            // completion.
+            await clearOnboardingProgress();
+
             router.replace('/(auth)/login');
           },
         },

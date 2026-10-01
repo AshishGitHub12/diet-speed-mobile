@@ -3,39 +3,66 @@ import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { useAppDispatch, useAppSelector } from '@/src/redux/hooks';
-import { saveHealthConditions } from '@/src/redux/onboardingSlice';
+import { saveFamilyHistory } from '@/src/redux/onboardingSlice';
 import api from '@/src/services/api';
+import { markOnboardingStepSubmitted, setCurrentOnboardingStep } from '@/src/utils/onboardingStore';
 import OnboardingScaffold from '@/src/components/ui/OnboardingScaffold';
-import UploadBox from '@/src/components/ui/UploadBox';
+import OptionCard from '@/src/components/ui/OptionCard';
 
-const TOTAL_STEPS = 14;
+const TOTAL_STEPS = 12; // matches the merged flow: conditions+report merged (5), activity+exercise merged (7)
+
+const OPTIONS = [
+  { value: 'diabetes_pcod_thyroid_hypertension', label: 'Diabetes/PCOD/Thyroid/Hypertension' },
+  { value: 'fatty_liver_constipation_ibs', label: 'Fatty Liver/Constipation/IBS' },
+  { value: 'arthritis_osteoporosis', label: 'Arthritis/Osteoporosis' },
+  { value: 'migraine', label: 'Migraine' },
+  { value: 'others', label: 'Others' },
+  { value: 'none', label: 'None' },
+];
 
 const OnboardingStep6Screen: React.FC = () => {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const healthConditions = useAppSelector((state) => state.onboarding.healthConditions);
 
-  const [fileName, setFileName] = useState<string | null>(null);
+  // Restore previous selection so "Previous" from Step 7 isn't a blank screen.
+  const familyHistoryState = useAppSelector((state: any) => state.onboarding.familyHistory);
+  const [selected, setSelected] = useState<string[]>(familyHistoryState?.conditions ?? []);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handlePickFile = () => {
-    // TODO: wire up expo-document-picker (or similar) here and setFileName
-    // to the picked file's name.
-    setFileName('report.pdf');
+  const toggle = (value: string) => {
+    if (value === 'none') {
+      setSelected(['none']);
+      return;
+    }
+    setSelected((prev) => {
+      const withoutNone = prev.filter((v) => v !== 'none');
+      return withoutNone.includes(value)
+        ? withoutNone.filter((v) => v !== value)
+        : [...withoutNone, value];
+    });
   };
 
-  const submit = async (skip: boolean) => {
+  const handleNext = async () => {
+    if (selected.length === 0 || isLoading) return;
     setIsLoading(true);
     try {
-      if (!skip && fileName) {
-        await api.post('/onboarding/step6/', { report_file_name: fileName });
-      }
-      dispatch(saveHealthConditions({
-        conditions: healthConditions?.conditions ?? [],
-        reportFileName: skip ? null : fileName,
-      }));
+      // Field name is `family_health_conditions`, matching the model —
+      // not `family_health_history`.
+      const payload = { family_health_conditions: selected };
+      console.log('📤 Step 6 (Family History) payload:', payload);
+
+      const { data, status } = await api.post('/onboarding/step6/', payload);
+      console.log('📥 Step 6 response status:', status);
+      console.log('📥 Step 6 response data:', JSON.stringify(data, null, 2));
+
+      dispatch(saveFamilyHistory({ conditions: selected }));
+      await markOnboardingStepSubmitted(6);
+      await setCurrentOnboardingStep(7);
+
       router.push('/(onboarding)/step7');
     } catch (error: any) {
+      console.log('❌ Step 6 error status:', error?.response?.status);
+      console.log('❌ Step 6 error data:', JSON.stringify(error?.response?.data));
       Alert.alert('Error', error?.response?.data?.message || 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
@@ -47,14 +74,28 @@ const OnboardingStep6Screen: React.FC = () => {
       totalSteps={TOTAL_STEPS}
       currentStep={6}
       eyebrow="Profile Details"
-      title="Upload any relevant medical reports"
-      subtitle="Optional — this helps us personalize your plan."
-      primaryLabel={fileName ? 'Next' : 'Skip'}
-      onPrimaryPress={() => submit(!fileName)}
+      title={"Do you have any of the following health\nconditions in family history?"}
+      primaryLabel="Next"
+      onPrimaryPress={handleNext}
+      primaryDisabled={selected.length === 0}
       primaryLoading={isLoading}
-      onPrevious={() => router.back()}
+      onPrevious={() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/(onboarding)/step5');
+        }
+      }}
     >
-      <UploadBox fileName={fileName} onPress={handlePickFile} />
+      {OPTIONS.map((opt) => (
+        <OptionCard
+          key={opt.value}
+          label={opt.label}
+          selected={selected.includes(opt.value)}
+          onPress={() => toggle(opt.value)}
+          mode="checkbox"
+        />
+      ))}
     </OnboardingScaffold>
   );
 };
