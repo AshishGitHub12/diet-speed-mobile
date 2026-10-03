@@ -1,22 +1,36 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Modal, Alert,
+  TextInput, Modal, Alert, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
+import api from '@/src/services/api';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// This reuses the existing `meals` app mount (api/meals/), confirmed from
+// your Django debug page's URL list — not a separate "diet" prefix.
+const DIET_BASE = '/meals/';
+
+// ─── Types — match DietView / MealEntrySerializer / FoodItemSerializer ────────
 
 interface FoodItem {
   id: number; name: string; calories: number;
   protein: number; carbs: number; fat: number; quantity: string;
 }
+interface MealItem {
+  id: number; name: string; calories: number;
+  protein: number; carbs: number; fat: number; quantity: string;
+}
 interface Meal {
-  id: number; type: 'breakfast'|'lunch'|'dinner'|'snack';
-  label: string; icon: keyof typeof Ionicons.glyphMap;
-  time: string; items: FoodItem[]; target_calories: number; completed: boolean;
+  type: 'breakfast' | 'lunch' | 'snack' | 'dinner';
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  time: string;
+  items: MealItem[];
+  target_calories: number;
+  completed: boolean;
 }
 interface DietData {
   date: string; calories_target: number; calories_consumed: number;
@@ -28,63 +42,28 @@ interface DietData {
   meals: Meal[]; water_glasses: number; water_target: number; ai_tip: string;
 }
 
-// ─── Dummy Data ───────────────────────────────────────────────────────────────
-
-const DUMMY_DATA: DietData = {
-  date: new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' }),
-  calories_target: 1800, calories_consumed: 1120,
-  macros: {
-    protein: { target: 120, consumed: 78 },
-    carbs:   { target: 200, consumed: 134 },
-    fat:     { target: 60,  consumed: 32 },
-  },
-  meals: [
-    { id: 1, type: 'breakfast', label: 'Breakfast', icon: 'sunny-outline',        time: '08:00 AM', target_calories: 450, completed: true,
-      items: [
-        { id: 1, name: 'Oats with milk', calories: 280, protein: 12, carbs: 48, fat: 6,  quantity: '1 bowl' },
-        { id: 2, name: 'Banana',         calories: 90,  protein: 1,  carbs: 23, fat: 0,  quantity: '1 medium' },
-        { id: 3, name: 'Boiled egg',     calories: 78,  protein: 6,  carbs: 1,  fat: 5,  quantity: '1 piece' },
-      ] },
-    { id: 2, type: 'lunch',     label: 'Lunch',     icon: 'partly-sunny-outline', time: '01:00 PM', target_calories: 600, completed: false,
-      items: [
-        { id: 4, name: 'Brown rice',     calories: 210, protein: 5,  carbs: 44, fat: 2,  quantity: '1 cup' },
-        { id: 5, name: 'Chicken curry',  calories: 320, protein: 28, carbs: 8,  fat: 18, quantity: '150g' },
-      ] },
-    { id: 3, type: 'snack',   label: 'Snack',   icon: 'cafe-outline',  time: '04:00 PM', target_calories: 200, completed: false, items: [] },
-    { id: 4, type: 'dinner',  label: 'Dinner',  icon: 'moon-outline',  time: '08:00 PM', target_calories: 550, completed: false, items: [] },
-  ],
-  water_glasses: 5, water_target: 8,
-  ai_tip: "You're 58g short on protein today. Try adding a handful of nuts or a boiled egg as your evening snack to hit your target!",
-};
-
-const FOOD_DB: FoodItem[] = [
-  { id: 101, name: 'Apple',          calories: 95,  protein: 0,  carbs: 25, fat: 0,  quantity: '1 medium' },
-  { id: 102, name: 'Banana',         calories: 90,  protein: 1,  carbs: 23, fat: 0,  quantity: '1 medium' },
-  { id: 103, name: 'Boiled egg',     calories: 78,  protein: 6,  carbs: 1,  fat: 5,  quantity: '1 piece' },
-  { id: 104, name: 'Brown rice',     calories: 210, protein: 5,  carbs: 44, fat: 2,  quantity: '1 cup' },
-  { id: 105, name: 'Chicken breast', calories: 165, protein: 31, carbs: 0,  fat: 4,  quantity: '100g' },
-  { id: 106, name: 'Greek yogurt',   calories: 100, protein: 17, carbs: 6,  fat: 1,  quantity: '1 cup' },
-  { id: 107, name: 'Oats',           calories: 150, protein: 5,  carbs: 27, fat: 3,  quantity: '1/2 cup' },
-  { id: 108, name: 'Paneer',         calories: 265, protein: 18, carbs: 3,  fat: 20, quantity: '100g' },
-  { id: 109, name: 'Roti',           calories: 104, protein: 3,  carbs: 18, fat: 3,  quantity: '1 piece' },
-  { id: 110, name: 'Salmon',         calories: 208, protein: 20, carbs: 0,  fat: 13, quantity: '100g' },
-  { id: 111, name: 'Sweet potato',   calories: 86,  protein: 2,  carbs: 20, fat: 0,  quantity: '100g' },
-  { id: 112, name: 'Whole milk',     calories: 149, protein: 8,  carbs: 12, fat: 8,  quantity: '1 cup' },
-  { id: 113, name: 'Almonds',        calories: 164, protein: 6,  carbs: 6,  fat: 14, quantity: '28g' },
-  { id: 114, name: 'Dal (lentils)',  calories: 230, protein: 18, carbs: 40, fat: 1,  quantity: '1 cup' },
-  { id: 115, name: 'Chapati',        calories: 120, protein: 4,  carbs: 20, fat: 3,  quantity: '1 piece' },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getMealCalories  = (meal: Meal) => meal.items.reduce((s, i) => s + i.calories, 0);
-const getTotalConsumed = (meals: Meal[]) => meals.reduce((s, m) => s + getMealCalories(m), 0);
 const clamp = (v: number, mn: number, mx: number) => Math.min(Math.max(v, mn), mx);
+
+// Scales a base quantity string like "1 piece" or "100g" by a count, e.g.
+// ("1 piece", 2) -> "2 piece", ("100g", 2) -> "200 g". Fractions ("1/2 cup")
+// fall back to a simple "<count> × <base>" label rather than guessing math.
+const scaledQuantityLabel = (baseQuantity: string, count: number): string => {
+  if (baseQuantity.includes('/')) return `${count} × ${baseQuantity}`;
+  const match = baseQuantity.match(/^([\d.]+)\s*(.*)$/);
+  if (!match) return `${count} × ${baseQuantity}`;
+  const baseNum = parseFloat(match[1]);
+  const unit = match[2];
+  const total = parseFloat((baseNum * count).toFixed(2));
+  return unit ? `${total} ${unit}` : `${total}`;
+};
 
 // ─── Macro Bar ────────────────────────────────────────────────────────────────
 
 const MacroBar = ({ label, consumed, target, color }: { label: string; consumed: number; target: number; color: string }) => {
-  const pct = clamp((consumed / target) * 100, 0, 100);
+  const pct = clamp((consumed / (target || 1)) * 100, 0, 100);
   return (
     <View style={styles.macroItem}>
       <View style={styles.macroTopRow}>
@@ -100,21 +79,58 @@ const MacroBar = ({ label, consumed, target, color }: { label: string; consumed:
 
 // ─── Quick Add Modal ──────────────────────────────────────────────────────────
 
-const QuickAddModal = ({ visible, meals, onClose, onAdd }: {
-  visible: boolean; meals: Meal[]; onClose: () => void;
-  onAdd: (mealId: number, food: FoodItem) => void;
+const QuickAddModal = ({ visible, meals, initialMealType, onClose, onAdd, isSaving }: {
+  visible: boolean; meals: Meal[]; initialMealType: Meal['type'] | null; onClose: () => void;
+  onAdd: (mealType: Meal['type'], food: FoodItem, count: number) => void;
+  isSaving: boolean;
 }) => {
   const [query, setQuery]               = useState('');
-  const [selectedMeal, setSelectedMeal] = useState<number|null>(null);
+  const [selectedMeal, setSelectedMeal] = useState<Meal['type'] | null>(null);
+  const [results, setResults]           = useState<FoodItem[]>([]);
+  const [searching, setSearching]       = useState(false);
+  const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null);
+  const [count, setCount]               = useState(1);
 
-  const results = query.length > 1
-    ? FOOD_DB.filter(f => f.name.toLowerCase().includes(query.toLowerCase()))
-    : FOOD_DB.slice(0, 6);
+  // Debounced live search against the backend food reference DB.
+  useEffect(() => {
+    if (!visible) return;
+    const handle = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const { data } = await api.get<FoodItem[]>(`${DIET_BASE}foods/`, { params: { q: query } });
+        setResults(data);
+      } catch (error: any) {
+        console.log('❌ Food search error:', error?.response?.status);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [query, visible]);
 
-  const handleAdd = (food: FoodItem) => {
+  // When the modal opens, pre-select whichever meal's "Add Food" button
+  // was tapped — tapping a meal card's own Add Food no longer requires
+  // re-selecting that same meal at the top of the sheet.
+  useEffect(() => {
+    if (visible) {
+      setSelectedMeal(initialMealType);
+      setQuery('');
+      setSelectedFood(null);
+      setCount(1);
+    }
+  }, [visible, initialMealType]);
+
+  // Tapping a food opens the quantity-confirm step instead of adding
+  // immediately — lets you pick "2 Roti" instead of always exactly 1.
+  const handlePickFood = (food: FoodItem) => {
     if (!selectedMeal) { Alert.alert('Select Meal', 'Please select which meal to add this to.'); return; }
-    onAdd(selectedMeal, food);
-    setQuery('');
+    setSelectedFood(food);
+    setCount(1);
+  };
+
+  const handleConfirmAdd = () => {
+    if (!selectedMeal || !selectedFood) return;
+    onAdd(selectedMeal, selectedFood, count);
   };
 
   return (
@@ -123,63 +139,122 @@ const QuickAddModal = ({ visible, meals, onClose, onAdd }: {
         <View style={m.sheet}>
           <View style={m.handle} />
           <View style={m.titleRow}>
-            <Text style={m.title}>Quick Add Food</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close-outline" size={24} color={Colors.textMuted} />
+            <Text style={m.title}>{selectedFood ? selectedFood.name : 'Quick Add Food'}</Text>
+            <TouchableOpacity onPress={selectedFood ? () => setSelectedFood(null) : onClose}>
+              <Ionicons name={selectedFood ? 'arrow-back-outline' : 'close-outline'} size={24} color={Colors.textMuted} />
             </TouchableOpacity>
           </View>
 
-          {/* Meal Selector */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={m.mealScroll}>
             {meals.map(meal => (
               <TouchableOpacity
-                key={meal.id}
-                style={[m.mealChip, selectedMeal === meal.id && m.mealChipActive]}
-                onPress={() => setSelectedMeal(meal.id)} activeOpacity={0.7}
+                key={meal.type}
+                style={[m.mealChip, selectedMeal === meal.type && m.mealChipActive]}
+                onPress={() => setSelectedMeal(meal.type)} activeOpacity={0.7}
               >
-                <Ionicons name={meal.icon} size={16} color={selectedMeal === meal.id ? Colors.primary : Colors.textMuted} />
-                <Text style={[m.mealChipText, selectedMeal === meal.id && m.mealChipTextActive]}>{meal.label}</Text>
+                <Ionicons name={meal.icon} size={16} color={selectedMeal === meal.type ? Colors.primary : Colors.textMuted} />
+                <Text style={[m.mealChipText, selectedMeal === meal.type && m.mealChipTextActive]}>{meal.label}</Text>
               </TouchableOpacity>
             ))}
           </ScrollView>
 
-          {/* Search */}
-          <View style={m.searchRow}>
-            <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
-            <TextInput
-              style={m.searchInput} value={query} onChangeText={setQuery}
-              placeholder="Search food..." placeholderTextColor={Colors.textMuted} autoFocus
-            />
-            {query.length > 0 && (
-              <TouchableOpacity onPress={() => setQuery('')}>
-                <Ionicons name="close-circle-outline" size={18} color={Colors.textMuted} />
-              </TouchableOpacity>
-            )}
-          </View>
+          {selectedFood ? (
+            // ── Quantity confirm step ──
+            <>
+              <View style={m.quantityCard}>
+                <Text style={m.quantityBaseLabel}>Base serving: {selectedFood.quantity}</Text>
 
-          {/* Results */}
-          <ScrollView style={m.resultsList} showsVerticalScrollIndicator={false}>
-            {results.map(food => (
-              <TouchableOpacity key={food.id} style={m.foodRow} onPress={() => handleAdd(food)} activeOpacity={0.7}>
-                <View style={m.foodIconBox}>
-                  <Ionicons name="restaurant-outline" size={16} color={Colors.primary} />
+                <View style={m.stepperRow}>
+                  <TouchableOpacity
+                    style={[m.stepperBtn, count <= 1 && m.stepperBtnDisabled]}
+                    onPress={() => setCount(c => Math.max(1, c - 1))}
+                    disabled={count <= 1}
+                  >
+                    <Ionicons name="remove" size={20} color={count <= 1 ? Colors.textMuted : Colors.primary} />
+                  </TouchableOpacity>
+                  <Text style={m.stepperCount}>{count}</Text>
+                  <TouchableOpacity
+                    style={m.stepperBtn}
+                    onPress={() => setCount(c => Math.min(20, c + 1))}
+                  >
+                    <Ionicons name="add" size={20} color={Colors.primary} />
+                  </TouchableOpacity>
                 </View>
-                <View style={m.foodInfo}>
-                  <Text style={m.foodName}>{food.name}</Text>
-                  <Text style={m.foodMeta}>{food.quantity} · P:{food.protein}g · C:{food.carbs}g · F:{food.fat}g</Text>
-                </View>
-                <View style={m.foodCalBadge}>
-                  <Text style={m.foodCal}>{food.calories}</Text>
-                  <Text style={m.foodCalUnit}>kcal</Text>
-                </View>
-                <Ionicons name="add-circle-outline" size={22} color={Colors.primary} />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
 
-          <TouchableOpacity style={m.closeBtn} onPress={onClose} activeOpacity={0.7}>
-            <Text style={m.closeBtnText}>Done</Text>
-          </TouchableOpacity>
+                <Text style={m.quantityResultLabel}>
+                  {scaledQuantityLabel(selectedFood.quantity, count)}
+                </Text>
+
+                <View style={m.quantityMacrosRow}>
+                  <View style={m.quantityMacroItem}>
+                    <Text style={m.quantityMacroVal}>{Math.round(selectedFood.calories * count)}</Text>
+                    <Text style={m.quantityMacroLabel}>kcal</Text>
+                  </View>
+                  <View style={m.quantityMacroItem}>
+                    <Text style={m.quantityMacroVal}>{Math.round(selectedFood.protein * count)}g</Text>
+                    <Text style={m.quantityMacroLabel}>protein</Text>
+                  </View>
+                  <View style={m.quantityMacroItem}>
+                    <Text style={m.quantityMacroVal}>{Math.round(selectedFood.carbs * count)}g</Text>
+                    <Text style={m.quantityMacroLabel}>carbs</Text>
+                  </View>
+                  <View style={m.quantityMacroItem}>
+                    <Text style={m.quantityMacroVal}>{Math.round(selectedFood.fat * count)}g</Text>
+                    <Text style={m.quantityMacroLabel}>fat</Text>
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity style={m.closeBtn} onPress={handleConfirmAdd} activeOpacity={0.85} disabled={isSaving}>
+                {isSaving
+                  ? <ActivityIndicator size="small" color={Colors.white} />
+                  : <Text style={m.closeBtnText}>Add to {meals.find(x => x.type === selectedMeal)?.label}</Text>}
+              </TouchableOpacity>
+            </>
+          ) : (
+            // ── Search step ──
+            <>
+              <View style={m.searchRow}>
+                <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+                <TextInput
+                  style={m.searchInput} value={query} onChangeText={setQuery}
+                  placeholder="Search food..." placeholderTextColor={Colors.textMuted} autoFocus
+                />
+                {searching && <ActivityIndicator size="small" color={Colors.primary} />}
+                {!searching && query.length > 0 && (
+                  <TouchableOpacity onPress={() => setQuery('')}>
+                    <Ionicons name="close-circle-outline" size={18} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <ScrollView style={m.resultsList} showsVerticalScrollIndicator={false}>
+                {results.length === 0 && !searching && (
+                  <Text style={m.noResults}>No foods found — try a different search.</Text>
+                )}
+                {results.map(food => (
+                  <TouchableOpacity key={food.id} style={m.foodRow} onPress={() => handlePickFood(food)} activeOpacity={0.7}>
+                    <View style={m.foodIconBox}>
+                      <Ionicons name="restaurant-outline" size={16} color={Colors.primary} />
+                    </View>
+                    <View style={m.foodInfo}>
+                      <Text style={m.foodName}>{food.name}</Text>
+                      <Text style={m.foodMeta}>{food.quantity} · P:{food.protein}g · C:{food.carbs}g · F:{food.fat}g</Text>
+                    </View>
+                    <View style={m.foodCalBadge}>
+                      <Text style={m.foodCal}>{food.calories}</Text>
+                      <Text style={m.foodCalUnit}>kcal</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <TouchableOpacity style={m.cancelCloseBtn} onPress={onClose} activeOpacity={0.7}>
+                <Text style={m.cancelCloseBtnText}>Done</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
     </Modal>
@@ -189,68 +264,156 @@ const QuickAddModal = ({ visible, meals, onClose, onAdd }: {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function DietScreen() {
-  const [data, setData]               = useState<DietData>(DUMMY_DATA);
+  const [data, setData]                 = useState<DietData | null>(null);
+  const [isLoading, setIsLoading]       = useState(true);
+  const [refreshing, setRefreshing]     = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [expandedMeal, setExpandedMeal] = useState<number|null>(1);
+  const [addModalMealType, setAddModalMealType] = useState<Meal['type'] | null>(null);
+  const [expandedMeal, setExpandedMeal] = useState<Meal['type'] | null>('breakfast');
+  const [isSaving, setIsSaving]         = useState(false);
 
-  const totalConsumed = getTotalConsumed(data.meals);
+  const todayIso = new Date().toISOString().split('T')[0];
+  const todayLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const fetchDiet = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    try {
+      const { data } = await api.get<DietData>(DIET_BASE, { params: { date: todayIso } });
+      console.log('📥 Diet response:', JSON.stringify(data, null, 2));
+      setData(data);
+    } catch (error: any) {
+      console.log('❌ Diet fetch error:', error?.response?.status, JSON.stringify(error?.response?.data));
+      Alert.alert('Error', "Failed to load today's diet data.");
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  }, [todayIso]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchDiet();
+    }, [fetchDiet])
+  );
+
+  // Opens Quick Add already scoped to a specific meal — used by each meal
+  // card's own "Add Food" button so you don't have to re-pick the meal
+  // chip at the top of the sheet after already being inside that card.
+  const openAddModal = (mealType: Meal['type'] | null) => {
+    setAddModalMealType(mealType);
+    setShowAddModal(true);
+  };
+
+  if (isLoading || !data) {
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  const totalConsumed = data.calories_consumed;
   const remaining     = data.calories_target - totalConsumed;
 
-  const toggleWater = (index: number) => {
+  const toggleWater = async (index: number) => {
     const newVal = index < data.water_glasses ? index : index + 1;
-    setData(prev => ({ ...prev, water_glasses: newVal }));
+    const previous = data.water_glasses;
+    setData(prev => prev ? { ...prev, water_glasses: newVal } : prev); // optimistic
+    try {
+      await api.post(`${DIET_BASE}water/`, { glasses: newVal, date: todayIso });
+    } catch (error: any) {
+      console.log('❌ Water log error:', error?.response?.status);
+      setData(prev => prev ? { ...prev, water_glasses: previous } : prev); // revert
+    }
   };
 
-  const handleAddFood = (mealId: number, food: FoodItem) => {
-    setData(prev => ({
-      ...prev,
-      meals: prev.meals.map(m =>
-        m.id === mealId ? { ...m, items: [...m.items, { ...food, id: Date.now() }] } : m
-      ),
-    }));
-    setShowAddModal(false);
+  const handleAddFood = async (mealType: Meal['type'], food: FoodItem, count: number) => {
+    if (isSaving) return;
+    setIsSaving(true);
+    try {
+      // Scale the macros by count ourselves and send them explicitly —
+      // MealItemView only fills in defaults from food_item for fields NOT
+      // already present in the payload, so passing these directly makes it
+      // log "2 Roti" worth of calories/macros instead of always 1 serving.
+      const payload = {
+        meal_type: mealType,
+        food_item: food.id,
+        date: todayIso,
+        name: food.name,
+        calories: Math.round(food.calories * count),
+        protein: Math.round(food.protein * count),
+        carbs: Math.round(food.carbs * count),
+        fat: Math.round(food.fat * count),
+        quantity: scaledQuantityLabel(food.quantity, count),
+      };
+      console.log('📤 Adding food:', payload);
+      await api.post(`${DIET_BASE}items/`, payload);
+      setShowAddModal(false);
+      await fetchDiet();
+    } catch (error: any) {
+      console.log('❌ Add food error:', error?.response?.status, JSON.stringify(error?.response?.data));
+      Alert.alert('Error', 'Failed to add food item.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleRemoveFood = (mealId: number, foodId: number) => {
+  const handleRemoveFood = (itemId: number) => {
     Alert.alert('Remove Item', 'Remove this food item?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () =>
-        setData(prev => ({
-          ...prev,
-          meals: prev.meals.map(m =>
-            m.id === mealId ? { ...m, items: m.items.filter(i => i.id !== foodId) } : m
-          ),
-        }))
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.delete(`${DIET_BASE}items/${itemId}/`);
+            await fetchDiet();
+          } catch (error: any) {
+            console.log('❌ Remove food error:', error?.response?.status);
+            Alert.alert('Error', 'Failed to remove item.');
+          }
+        },
       },
     ]);
   };
 
-  const toggleMealComplete = (mealId: number) =>
-    setData(prev => ({
-      ...prev,
-      meals: prev.meals.map(m => m.id === mealId ? { ...m, completed: !m.completed } : m),
-    }));
+  const toggleMealComplete = async (mealType: Meal['type']) => {
+    const previous = data.meals;
+    setData(prev => prev
+      ? { ...prev, meals: prev.meals.map(m => m.type === mealType ? { ...m, completed: !m.completed } : m) }
+      : prev); // optimistic
+    try {
+      await api.post(`${DIET_BASE}meals/${mealType}/complete/`, { date: todayIso });
+    } catch (error: any) {
+      console.log('❌ Toggle meal complete error:', error?.response?.status);
+      setData(prev => prev ? { ...prev, meals: previous } : prev); // revert
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
 
-      {/* Header */}
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Diet Tracker</Text>
-          <Text style={styles.headerDate}>{data.date}</Text>
+          <Text style={styles.headerDate}>{todayLabel}</Text>
         </View>
-        <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddModal(true)} activeOpacity={0.85}>
+        <TouchableOpacity style={styles.addBtn} onPress={() => openAddModal(null)} activeOpacity={0.85}>
           <Ionicons name="add-outline" size={18} color={Colors.white} />
           <Text style={styles.addBtnText}>Add Food</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchDiet(true)} tintColor={Colors.primary} />
+        }
+      >
 
-        {/* Summary Card */}
         <View style={styles.summaryCard}>
-          {/* Calorie Ring */}
           <View style={styles.ringWrapper}>
             <View style={styles.ringOuter}>
               <View style={styles.ringInner}>
@@ -284,14 +447,13 @@ export default function DietScreen() {
               <View style={styles.ringStat}>
                 <View style={styles.ringStatIconRow}>
                   <Ionicons name="pie-chart-outline" size={14} color={Colors.primary} />
-                  <Text style={styles.ringStatVal}>{Math.round(clamp((totalConsumed / data.calories_target) * 100, 0, 100))}%</Text>
+                  <Text style={styles.ringStatVal}>{Math.round(clamp((totalConsumed / (data.calories_target || 1)) * 100, 0, 100))}%</Text>
                 </View>
                 <Text style={styles.ringStatLabel}>Done</Text>
               </View>
             </View>
           </View>
 
-          {/* Macros */}
           <View style={styles.macrosRow}>
             <MacroBar label="Protein" consumed={data.macros.protein.consumed} target={data.macros.protein.target} color="#4CAF50" />
             <MacroBar label="Carbs"   consumed={data.macros.carbs.consumed}   target={data.macros.carbs.target}   color="#2196F3" />
@@ -299,15 +461,14 @@ export default function DietScreen() {
           </View>
         </View>
 
-        {/* Meals */}
         <Text style={styles.sectionTitle}>Today's Meals</Text>
         <View style={styles.mealsGroup}>
           {data.meals.map(meal => {
             const mealCals  = getMealCalories(meal);
-            const isExpanded = expandedMeal === meal.id;
+            const isExpanded = expandedMeal === meal.type;
             return (
-              <View key={meal.id} style={[styles.mealCard, meal.completed && styles.mealCardDone]}>
-                <TouchableOpacity style={styles.mealHeader} onPress={() => setExpandedMeal(isExpanded ? null : meal.id)} activeOpacity={0.7}>
+              <View key={meal.type} style={[styles.mealCard, meal.completed && styles.mealCardDone]}>
+                <TouchableOpacity style={styles.mealHeader} onPress={() => setExpandedMeal(isExpanded ? null : meal.type)} activeOpacity={0.7}>
                   <View style={styles.mealIconBox}>
                     <Ionicons name={meal.icon} size={20} color={Colors.primary} />
                   </View>
@@ -336,7 +497,7 @@ export default function DietScreen() {
                       </View>
                     ) : (
                       meal.items.map(item => (
-                        <TouchableOpacity key={item.id} style={styles.foodItem} onLongPress={() => handleRemoveFood(meal.id, item.id)} activeOpacity={0.7}>
+                        <TouchableOpacity key={item.id} style={styles.foodItem} onLongPress={() => handleRemoveFood(item.id)} activeOpacity={0.7}>
                           <View style={styles.foodItemIconBox}>
                             <Ionicons name="nutrition-outline" size={14} color={Colors.primary} />
                           </View>
@@ -352,13 +513,13 @@ export default function DietScreen() {
                       ))
                     )}
                     <View style={styles.mealActions}>
-                      <TouchableOpacity style={styles.mealAddBtn} onPress={() => setShowAddModal(true)} activeOpacity={0.7}>
+                      <TouchableOpacity style={styles.mealAddBtn} onPress={() => openAddModal(meal.type)} activeOpacity={0.7}>
                         <Ionicons name="add-outline" size={16} color={Colors.primary} />
                         <Text style={styles.mealAddBtnText}>Add Food</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.mealDoneBtn, meal.completed && styles.mealDoneBtnActive]}
-                        onPress={() => toggleMealComplete(meal.id)} activeOpacity={0.7}
+                        onPress={() => toggleMealComplete(meal.type)} activeOpacity={0.7}
                       >
                         <Ionicons name={meal.completed ? 'checkmark-circle' : 'ellipse-outline'} size={16} color={meal.completed ? Colors.white : Colors.textMuted} />
                         <Text style={[styles.mealDoneBtnText, meal.completed && styles.mealDoneBtnTextActive]}>
@@ -373,7 +534,6 @@ export default function DietScreen() {
           })}
         </View>
 
-        {/* Water Intake */}
         <Text style={styles.sectionTitle}>Water Intake</Text>
         <View style={styles.waterCard}>
           <View style={styles.waterTopRow}>
@@ -410,7 +570,6 @@ export default function DietScreen() {
           </View>
         </View>
 
-        {/* AI Tip */}
         <Text style={styles.sectionTitle}>AI Coach Tip</Text>
         <View style={styles.aiTipCard}>
           <View style={styles.aiTipAvatar}>
@@ -422,7 +581,14 @@ export default function DietScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      <QuickAddModal visible={showAddModal} meals={data.meals} onClose={() => setShowAddModal(false)} onAdd={handleAddFood} />
+      <QuickAddModal
+        visible={showAddModal}
+        meals={data.meals}
+        initialMealType={addModalMealType}
+        onClose={() => setShowAddModal(false)}
+        onAdd={handleAddFood}
+        isSaving={isSaving}
+      />
     </SafeAreaView>
   );
 }
@@ -431,6 +597,7 @@ export default function DietScreen() {
 
 const styles = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: Colors.background },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, backgroundColor: Colors.primaryMuted },
   headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.primary },
   headerDate:  { fontSize: Fonts.sizes.sm, color: Colors.textMuted, marginTop: 2 },
@@ -513,6 +680,8 @@ const styles = StyleSheet.create({
   aiTipText:   { flex: 1, fontSize: Fonts.sizes.sm, color: Colors.textDark, lineHeight: 20 },
 });
 
+const chartUnused = null; // (placeholder removed from earlier draft, kept file structure stable)
+
 const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
   sheet:   { backgroundColor: Colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg + 16, paddingTop: Spacing.sm, maxHeight: '85%' },
@@ -527,6 +696,7 @@ const m = StyleSheet.create({
   searchRow:  { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.background, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.md, borderWidth: 1.5, borderColor: Colors.border, gap: Spacing.sm, marginBottom: Spacing.md },
   searchInput:{ flex: 1, height: 44, fontSize: Fonts.sizes.md, color: Colors.textDark },
   resultsList:{ maxHeight: 320 },
+  noResults:  { fontSize: Fonts.sizes.sm, color: Colors.textMuted, textAlign: 'center', paddingVertical: Spacing.md },
   foodRow:    { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm + 2, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: Spacing.sm },
   foodIconBox:{ width: 34, height: 34, borderRadius: 10, backgroundColor: Colors.primaryMuted, justifyContent: 'center', alignItems: 'center' },
   foodInfo:   { flex: 1 },
@@ -537,4 +707,19 @@ const m = StyleSheet.create({
   foodCalUnit:{ fontSize: 10, color: Colors.textMuted },
   closeBtn:   { backgroundColor: Colors.primary, borderRadius: BorderRadius.full, height: 52, justifyContent: 'center', alignItems: 'center', marginTop: Spacing.md },
   closeBtnText:{ fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.white },
+
+  cancelCloseBtn:    { borderWidth: 1.5, borderColor: Colors.border, borderRadius: BorderRadius.full, height: 52, justifyContent: 'center', alignItems: 'center', marginTop: Spacing.md },
+  cancelCloseBtnText:{ fontSize: Fonts.sizes.md, fontWeight: '600', color: Colors.textMuted },
+
+  quantityCard:       { backgroundColor: Colors.background, borderRadius: BorderRadius.lg, padding: Spacing.md, alignItems: 'center', gap: Spacing.md },
+  quantityBaseLabel:  { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
+  stepperRow:         { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
+  stepperBtn:         { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: Colors.primary, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.white },
+  stepperBtnDisabled: { borderColor: Colors.border },
+  stepperCount:       { fontSize: 28, fontWeight: '800', color: Colors.textDark, minWidth: 40, textAlign: 'center' },
+  quantityResultLabel:{ fontSize: Fonts.sizes.md, fontWeight: '600', color: Colors.primary },
+  quantityMacrosRow:  { flexDirection: 'row', width: '100%', justifyContent: 'space-around', paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border },
+  quantityMacroItem:  { alignItems: 'center', gap: 2 },
+  quantityMacroVal:   { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.textDark },
+  quantityMacroLabel: { fontSize: 11, color: Colors.textMuted },
 });

@@ -30,7 +30,10 @@ const ICON_PLAY       = require('@/assets/icons/play.png');
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface HomeData {
-  user: { name: string; current_weight: number; target_weight: number; bmi: number; bmi_category: string };
+  user: {
+    name: string; current_weight: number; target_weight: number; bmi: number; bmi_category: string;
+    calories_consumed_today: number; calorie_goal: number;
+  };
   date: { today_date: string; day_name: string };
   success_stories: { id: number; name: string; result: string; image: string }[];
   recipes: { id: number; name: string; image: string; calories: number }[];
@@ -250,7 +253,11 @@ export default function HomeScreen() {
               <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/tools/meal-log' as any)}>
                 <Text style={styles.toolTitle}>Meal Log</Text>
                 <Image source={ICON_MEAL} style={styles.toolImg} resizeMode="contain" />
-                <Text style={styles.toolSub}>Your Daily Diet</Text>
+                <Text style={styles.toolSub}>
+                  {homeData?.user?.calorie_goal != null
+                    ? `Today\n${homeData.user.calories_consumed_today}/${homeData.user.calorie_goal} kcal`
+                    : 'Today\n--'}
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/tools/challenges' as any)}>
                 <Text style={styles.toolTitle}>Challenges</Text>

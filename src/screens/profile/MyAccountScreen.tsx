@@ -25,6 +25,7 @@ interface Profile {
   weight: number;
   bmi: number;
   target_weight: number | null;
+  calorie_goal: number | null;
   dietary_preference: string;
   food_allergies: string[];
   health_conditions: string[];
@@ -395,6 +396,7 @@ export default function MyAccountScreen() {
           <InfoRow icon="swap-vertical-outline"  label="Height Unit"         value={profile?.height_unit?.toUpperCase() ?? ''}                         onPress={() => openEdit('height_unit',   'Height Unit',    'select', HEIGHT_UNITS)} />
           <InfoRow icon="scale-outline"          label="Current Weight (kg)" value={profile?.weight ? String(profile.weight) : ''}                     onPress={() => openEdit('weight',        'Current Weight', 'number')} />
           <InfoRow icon="flag-outline"           label="Target Weight (kg)"  value={profile?.target_weight ? String(profile.target_weight) : ''}       onPress={() => openEdit('target_weight', 'Target Weight',  'number')} />
+          <InfoRow icon="flame-outline"          label="Daily Calorie Goal"  value={profile?.calorie_goal ? `${profile.calorie_goal} kcal` : ''}       onPress={() => openEdit('calorie_goal', 'Daily Calorie Goal', 'number')} />
           <View style={styles.bmiRow}>
             <View style={styles.iconBox}>
               <Ionicons name="analytics-outline" size={18} color={Colors.primary} />
