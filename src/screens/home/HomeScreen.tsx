@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch, useAppSelector } from '@/src/redux/hooks';
 import { setHomeData } from '@/src/redux/userSlice';
@@ -60,7 +60,6 @@ const DUMMY_RECIPES = [
   { id: 4, name: 'Protein Pancakes',      image: '', calories: 350 },
 ];
 
-// Story avatar colors for placeholder
 const STORY_COLORS = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#E05C5C'];
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -150,7 +149,7 @@ export default function HomeScreen() {
   const [workoutsLoading, setWorkoutsLoading] = useState(true);
   const [recipesLoading, setRecipesLoading]   = useState(true);
 
-  const fetchHome = async (isRefresh = false) => {
+  const fetchHome = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
       const res = await api.get('/home/');
@@ -161,14 +160,20 @@ export default function HomeScreen() {
     } finally {
       setIsLoading(false);
       setRefreshing(false);
-      // Stagger skeleton removal for natural feel
       setTimeout(() => setStoriesLoading(false),  400);
       setTimeout(() => setWorkoutsLoading(false),  700);
       setTimeout(() => setRecipesLoading(false),  1000);
     }
-  };
+  }, [dispatch]);
 
-  useEffect(() => { fetchHome(); }, []);
+  // Refetch every time this screen regains focus — not just on first mount —
+  // so logging a new weight in Weight Tracker and navigating back here shows
+  // the updated current_weight immediately instead of a stale value.
+  useFocusEffect(
+    useCallback(() => {
+      fetchHome();
+    }, [fetchHome])
+  );
 
   if (isLoading) {
     return (
@@ -178,7 +183,6 @@ export default function HomeScreen() {
     );
   }
 
-  // Use API data if available, fallback to dummy data
   const stories  = homeData?.success_stories?.length  ? homeData.success_stories  : DUMMY_STORIES;
   const workouts = homeData?.workouts?.length          ? homeData.workouts          : DUMMY_WORKOUTS;
   const recipes  = homeData?.recipes?.length           ? homeData.recipes           : DUMMY_RECIPES;
@@ -238,7 +242,9 @@ export default function HomeScreen() {
                 <Text style={styles.toolTitle}>Weight Tracker</Text>
                 <Image source={ICON_WEIGHT} style={styles.toolImg} resizeMode="contain" />
                 <Text style={styles.toolSub}>
-                  {homeData?.user?.current_weight ? `${homeData.user.current_weight} kg` : 'Current Weight\n--'}
+                  {homeData?.user?.current_weight != null
+                    ? `Current Weight\n${homeData.user.current_weight} kg`
+                    : 'Current Weight\n--'}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/tools/meal-log' as any)}>
@@ -269,12 +275,10 @@ export default function HomeScreen() {
                 ? [1, 2, 3].map(i => <SkeletonCard key={i} width={160} height={210} />)
                 : stories.map((story, index) => (
                     <TouchableOpacity key={story.id} style={styles.storyCard} activeOpacity={0.85}>
-                      {/* Image or Placeholder */}
                       {story.image
                         ? <Image source={{ uri: story.image }} style={styles.storyImage} />
                         : <StoryPlaceholder name={story.name} index={index} />
                       }
-                      {/* Gradient Overlay */}
                       <View style={styles.storyOverlay}>
                         <View style={styles.storyBadge}>
                           <Ionicons name="star" size={10} color="#FFD700" />
@@ -299,21 +303,17 @@ export default function HomeScreen() {
                 ? [1, 2, 3].map(i => <SkeletonCard key={i} width={220} height={150} />)
                 : workouts.map(workout => (
                     <TouchableOpacity key={workout.id} style={styles.exploreCard} activeOpacity={0.85}>
-                      {/* Thumbnail or placeholder */}
                       {workout.thumbnail
                         ? <Image source={{ uri: workout.thumbnail }} style={styles.exploreImage} />
                         : <WorkoutPlaceholder />
                       }
-                      {/* Play Button */}
                       <View style={styles.playBtn}>
                         <Image source={ICON_PLAY} style={styles.playImg} resizeMode="contain" />
                       </View>
-                      {/* Duration Chip */}
                       <View style={styles.durationChip}>
                         <Ionicons name="time-outline" size={11} color="#fff" />
                         <Text style={styles.durationText}>{workout.duration}</Text>
                       </View>
-                      {/* Bottom Overlay */}
                       <View style={styles.exploreOverlay}>
                         <Text style={styles.exploreTitle} numberOfLines={1}>{workout.title}</Text>
                         <View style={styles.exploreMetaRow}>
@@ -337,7 +337,6 @@ export default function HomeScreen() {
                 ? [1, 2, 3].map(i => <SkeletonCard key={i} width={170} height={180} />)
                 : recipes.map(recipe => (
                     <TouchableOpacity key={recipe.id} style={styles.recipeCard} activeOpacity={0.85}>
-                      {/* Image or Placeholder */}
                       {recipe.image
                         ? <Image source={{ uri: recipe.image }} style={styles.recipeImage} />
                         : (
@@ -346,16 +345,13 @@ export default function HomeScreen() {
                           </View>
                         )
                       }
-                      {/* Play Button */}
                       <View style={styles.playBtn}>
                         <Image source={ICON_PLAY} style={styles.playImg} resizeMode="contain" />
                       </View>
-                      {/* Calorie Chip */}
                       <View style={styles.calChip}>
                         <Ionicons name="flame-outline" size={11} color="#fff" />
                         <Text style={styles.calChipText}>{recipe.calories} cal</Text>
                       </View>
-                      {/* Bottom Overlay */}
                       <View style={styles.recipeOverlay}>
                         <Text style={styles.recipeTitle} numberOfLines={2}>{recipe.name}</Text>
                         <View style={styles.recipeMetaRow}>
@@ -384,7 +380,6 @@ const styles = StyleSheet.create({
   scroll:        { flex: 1 },
   scrollContent: { paddingHorizontal: Spacing.md },
 
-  // Header — unchanged
   header:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: Spacing.sm, paddingBottom: Spacing.sm },
   headerLeft:  {},
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -395,27 +390,22 @@ const styles = StyleSheet.create({
   avatar:      { width: 38, height: 38, borderRadius: 19, backgroundColor: Colors.primaryMuted, justifyContent: 'center', alignItems: 'center' },
   avatarText:  { fontSize: 16, fontWeight: '700', color: Colors.primary },
 
-  // Greeting — unchanged
   greetingContainer: { marginBottom: Spacing.md },
   greetingHello:     { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
   greetingName:      { fontSize: Fonts.sizes.xl, fontWeight: '700', color: Colors.textDark },
 
-  // Date card — unchanged
   dateCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4, marginBottom: Spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   dateDayName:  { fontSize: Fonts.sizes.sm, color: Colors.textMuted, marginBottom: 2 },
   dateFullDate: { fontSize: Fonts.sizes.md, fontWeight: '600', color: Colors.textDark },
 
-  // Sections
   section: { marginBottom: Spacing.lg },
 
-  // Tools — unchanged
   toolsRow: { flexDirection: 'row', gap: 12, paddingBottom: 4 },
   toolCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, width: 160, height: 160, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4, justifyContent: 'space-between', alignItems: 'center' },
   toolImg:   { width: 40, height: 40 },
   toolTitle: { fontSize: Fonts.sizes.md, fontWeight: '600', color: Colors.primary, lineHeight: 22, textAlign: 'center' },
   toolSub:   { fontSize: Fonts.sizes.sm, color: Colors.textDark, lineHeight: 18, textAlign: 'center' },
 
-  // ── Success Stories (FIXED) ──
   storiesRow: { flexDirection: 'row', gap: 12, paddingBottom: 4 },
   storyCard:  { width: 160, height: 210, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.primaryMuted },
   storyImage: { width: '100%', height: '100%', position: 'absolute' },
@@ -430,7 +420,6 @@ const styles = StyleSheet.create({
   storyName:      { fontSize: Fonts.sizes.sm, color: '#fff', fontWeight: '700', lineHeight: 18 },
   storyResult:    { fontSize: 11, color: 'rgba(255,255,255,0.85)', lineHeight: 15, marginTop: 1 },
 
-  // ── Explore / Workouts (FIXED) ──
   exploreRow:  { flexDirection: 'row', gap: 12, paddingBottom: 4 },
   exploreCard: { width: 220, height: 150, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.primaryMuted },
   exploreImage: { width: '100%', height: '100%', position: 'absolute' },
@@ -441,7 +430,6 @@ const styles = StyleSheet.create({
   exploreMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   exploreMetaText:{ fontSize: 11, color: 'rgba(255,255,255,0.8)' },
 
-  // ── Recipes (FIXED) ──
   recipesRow:  { flexDirection: 'row', gap: 12, paddingBottom: 4 },
   recipeCard:  { width: 170, height: 180, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.primaryMuted },
   recipeImage: { width: '100%', height: '100%', position: 'absolute' },
@@ -453,7 +441,6 @@ const styles = StyleSheet.create({
   recipeMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   recipeMetaText:{ fontSize: 11, color: 'rgba(255,255,255,0.8)' },
 
-  // Play button — same position logic, slightly improved
   playBtn:  { position: 'absolute', top: '50%', left: '50%', marginTop: -18, marginLeft: -18, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
   playImg:  { width: 16, height: 16 },
 });

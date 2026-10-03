@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { useAppDispatch } from '@/src/redux/hooks';
+import { useAppDispatch, useAppSelector } from '@/src/redux/hooks';
 import { saveDietaryPreference } from '@/src/redux/onboardingSlice';
 import api from '@/src/services/api';
+import { markOnboardingStepSubmitted, setCurrentOnboardingStep } from '@/src/utils/onboardingStore';
 import OnboardingScaffold from '@/src/components/ui/OnboardingScaffold';
 import OptionCard from '@/src/components/ui/OptionCard';
 
@@ -20,17 +21,31 @@ const OPTIONS = [
 const OnboardingStep3Screen: React.FC = () => {
   const router = useRouter();
   const dispatch = useAppDispatch();
-  const [selected, setSelected] = useState<string | null>(null);
+
+  // Restore previous selection so "Previous" from Step 4 isn't a blank screen.
+  const dietaryPreference = useAppSelector((state: any) => state.onboarding.dietaryPreference);
+  const [selected, setSelected] = useState<string | null>(dietaryPreference?.preference ?? null);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleNext = async () => {
-    if (!selected) return;
+    if (!selected || isLoading) return;
     setIsLoading(true);
     try {
-      await api.post('/onboarding/step3/', { dietary_preference: selected });
+      const payload = { dietary_preference: selected };
+      console.log('📤 Step 3 (Dietary Preference) payload:', payload);
+
+      const { data, status } = await api.post('/onboarding/step3/', payload);
+      console.log('📥 Step 3 response status:', status);
+      console.log('📥 Step 3 response data:', JSON.stringify(data, null, 2));
+
       dispatch(saveDietaryPreference({ preference: selected }));
+      await markOnboardingStepSubmitted(3);
+      await setCurrentOnboardingStep(4);
+
       router.push('/(onboarding)/step4');
     } catch (error: any) {
+      console.log('❌ Step 3 error status:', error?.response?.status);
+      console.log('❌ Step 3 error data:', JSON.stringify(error?.response?.data));
       Alert.alert('Error', error?.response?.data?.message || 'Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);
@@ -47,7 +62,13 @@ const OnboardingStep3Screen: React.FC = () => {
       onPrimaryPress={handleNext}
       primaryDisabled={!selected}
       primaryLoading={isLoading}
-      onPrevious={() => router.back()}
+      onPrevious={() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/(onboarding)/step2');
+        }
+      }}
     >
       {OPTIONS.map((opt) => (
         <OptionCard

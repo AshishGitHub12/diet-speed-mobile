@@ -1,53 +1,52 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Modal, Alert, Dimensions,
+  TextInput, Modal, Alert, Dimensions, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import api from '@/src/services/api';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
+
+// CONFIRM THIS against your root urls.py — guessed from `from weights.utils
+// import get_latest_weight`. If your mount prefix is different, change only
+// this one constant.
+const WEIGHT_BASE = '/weight/';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CHART_WIDTH  = SCREEN_WIDTH - 32 - Spacing.md * 2;
 const CHART_HEIGHT = 160;
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types — match WeightLogSerializer + WeightHistoryView response ───────────
 
 interface WeightEntry {
   id: number;
   date: string;
   weight: number;
-  note?: string;
+  note?: string | null;
+  bmi?: number | null;
+}
+
+interface HistoryResponse {
+  current_weight: number | null;
+  target_weight: number | null;
+  height: number | null;
+  height_unit: string | null;
+  entries: WeightEntry[];
 }
 
 type ChartRange = '1W' | '1M' | '3M' | 'All';
-
-// ─── Dummy Data ───────────────────────────────────────────────────────────────
-
-const DUMMY_ENTRIES: WeightEntry[] = [
-  { id: 1,  date: '2026-02-01', weight: 68.5, note: 'Started diet plan' },
-  { id: 2,  date: '2026-02-05', weight: 68.0 },
-  { id: 3,  date: '2026-02-10', weight: 67.5, note: 'Feeling great' },
-  { id: 4,  date: '2026-02-15', weight: 67.8 },
-  { id: 5,  date: '2026-02-20', weight: 67.2 },
-  { id: 6,  date: '2026-02-25', weight: 66.9, note: 'Skipped gym' },
-  { id: 7,  date: '2026-03-01', weight: 66.5 },
-  { id: 8,  date: '2026-03-05', weight: 66.2, note: 'Consistent workouts' },
-  { id: 9,  date: '2026-03-10', weight: 65.9 },
-  { id: 10, date: '2026-03-15', weight: 65.5 },
-  { id: 11, date: '2026-03-20', weight: 65.2, note: 'New low!' },
-  { id: 12, date: '2026-03-24', weight: 65.0 },
-];
-
-const TARGET_WEIGHT  = 62.0;
-const START_WEIGHT   = 68.5;
-const HEIGHT_CM      = 165;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const calcBMI = (weight: number, heightCm: number) =>
   parseFloat((weight / Math.pow(heightCm / 100, 2)).toFixed(1));
+
+const toHeightCm = (height: number | null, unit: string | null): number | null => {
+  if (!height || !unit) return null;
+  return unit === 'ft' ? height * 30.48 : height;
+};
 
 const getBMICategory = (bmi: number) => {
   if (bmi < 18.5) return { label: 'Underweight', color: '#2196F3' };
@@ -67,7 +66,7 @@ const formatFullDate = (dateStr: string) => {
 };
 
 const filterByRange = (entries: WeightEntry[], range: ChartRange): WeightEntry[] => {
-  const now  = new Date('2026-03-24');
+  const now  = new Date();
   const copy = [...entries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   if (range === 'All') return copy;
   const days = range === '1W' ? 7 : range === '1M' ? 30 : 90;
@@ -82,7 +81,7 @@ const LineChart = ({ entries }: { entries: WeightEntry[] }) => {
   if (entries.length < 2) return (
     <View style={chart.empty}>
       <Ionicons name="bar-chart-outline" size={32} color={Colors.border} />
-      <Text style={chart.emptyText}>Not enough data</Text>
+      <Text style={chart.emptyText}>Not enough data yet</Text>
     </View>
   );
 
@@ -99,14 +98,12 @@ const LineChart = ({ entries }: { entries: WeightEntry[] }) => {
 
   return (
     <View style={[chart.container, { width: CHART_WIDTH, height: CHART_HEIGHT + 40 }]}>
-      {/* Y-axis labels */}
       {[0, 0.5, 1].map(t => (
         <View key={t} style={[chart.gridLine, { top: t * CHART_HEIGHT }]}>
           <Text style={chart.yLabel}>{(maxW - t * range).toFixed(1)}</Text>
         </View>
       ))}
 
-      {/* Connecting lines */}
       {pts.slice(0, -1).map((pt, i) => {
         const next   = pts[i + 1];
         const dx     = next.x - pt.x;
@@ -124,12 +121,10 @@ const LineChart = ({ entries }: { entries: WeightEntry[] }) => {
         );
       })}
 
-      {/* Dots */}
       {pts.map((pt, i) => (
         <View key={i} style={[chart.dot, { left: pt.x - 5, top: pt.y - 5 }]} />
       ))}
 
-      {/* First & Last labels */}
       <Text style={[chart.xLabel, { left: 0 }]}>{formatDate(entries[0].date)}</Text>
       <Text style={[chart.xLabel, { right: 0 }]}>{formatDate(entries[entries.length - 1].date)}</Text>
     </View>
@@ -138,13 +133,18 @@ const LineChart = ({ entries }: { entries: WeightEntry[] }) => {
 
 // ─── Log Weight Modal ─────────────────────────────────────────────────────────
 
-const LogWeightModal = ({ visible, onClose, onSave }: {
+const LogWeightModal = ({ visible, onClose, onSave, isSaving }: {
   visible: boolean;
   onClose: () => void;
   onSave: (weight: number, note: string) => void;
+  isSaving: boolean;
 }) => {
   const [weight, setWeight] = useState('');
   const [note, setNote]     = useState('');
+
+  useEffect(() => {
+    if (visible) { setWeight(''); setNote(''); }
+  }, [visible]);
 
   const handleSave = () => {
     const w = parseFloat(weight);
@@ -153,8 +153,6 @@ const LogWeightModal = ({ visible, onClose, onSave }: {
       return;
     }
     onSave(w, note);
-    setWeight('');
-    setNote('');
   };
 
   return (
@@ -191,12 +189,18 @@ const LogWeightModal = ({ visible, onClose, onSave }: {
           />
 
           <View style={m.actions}>
-            <TouchableOpacity style={m.cancelBtn} onPress={onClose} activeOpacity={0.7}>
+            <TouchableOpacity style={m.cancelBtn} onPress={onClose} activeOpacity={0.7} disabled={isSaving}>
               <Text style={m.cancelText}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={m.saveBtn} onPress={handleSave} activeOpacity={0.85}>
-              <Ionicons name="checkmark-outline" size={18} color={Colors.white} />
-              <Text style={m.saveText}>Save</Text>
+            <TouchableOpacity style={m.saveBtn} onPress={handleSave} activeOpacity={0.85} disabled={isSaving}>
+              {isSaving ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-outline" size={18} color={Colors.white} />
+                  <Text style={m.saveText}>Save</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -209,50 +213,122 @@ const LogWeightModal = ({ visible, onClose, onSave }: {
 
 export default function WeightTrackerScreen() {
   const router = useRouter();
-  const [entries, setEntries]       = useState<WeightEntry[]>(DUMMY_ENTRIES);
-  const [chartRange, setChartRange] = useState<ChartRange>('1M');
-  const [showLogModal, setShowLogModal] = useState(false);
+
+  const [entries, setEntries]           = useState<WeightEntry[]>([]);
+  const [targetWeight, setTargetWeight] = useState<number | null>(null);
+  const [heightCm, setHeightCm]         = useState<number | null>(null);
+  const [chartRange, setChartRange]     = useState<ChartRange>('1M');
+
+  const [isLoading, setIsLoading]           = useState(true);
+  const [refreshing, setRefreshing]         = useState(false);
+  const [isSavingEntry, setIsSavingEntry]   = useState(false);
+  const [showLogModal, setShowLogModal]     = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
 
-  const sorted       = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  const currentWeight = sorted[0]?.weight ?? 0;
-  const prevWeight    = sorted[1]?.weight ?? currentWeight;
-  const weekChange    = currentWeight - (sorted.find(e => {
-    const diff = (new Date(sorted[0].date).getTime() - new Date(e.date).getTime()) / (1000 * 60 * 60 * 24);
-    return diff >= 6;
-  })?.weight ?? currentWeight);
-  const monthChange   = currentWeight - (sorted.find(e => {
-    const diff = (new Date(sorted[0].date).getTime() - new Date(e.date).getTime()) / (1000 * 60 * 60 * 24);
-    return diff >= 28;
-  })?.weight ?? currentWeight);
+  const fetchHistory = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    try {
+      // Always fetch the full history — chart range filtering happens
+      // client-side (filterByRange) so switching tabs doesn't refetch.
+      const { data } = await api.get<HistoryResponse>(`${WEIGHT_BASE}history/`, {
+        params: { range: 'All' },
+      });
+      console.log('📥 Weight history response:', JSON.stringify(data, null, 2));
 
-  const bmi         = calcBMI(currentWeight, HEIGHT_CM);
-  const bmiCategory = getBMICategory(bmi);
-  const totalLost   = START_WEIGHT - currentWeight;
-  const remaining   = currentWeight - TARGET_WEIGHT;
-  const progressPct = Math.min(((START_WEIGHT - currentWeight) / (START_WEIGHT - TARGET_WEIGHT)) * 100, 100);
+      setEntries(data.entries ?? []);
+      setTargetWeight(data.target_weight ?? null);
+      setHeightCm(toHeightCm(data.height, data.height_unit));
+    } catch (error: any) {
+      console.log('❌ Weight history error:', error?.response?.status, JSON.stringify(error?.response?.data));
+      Alert.alert('Error', 'Failed to load weight history.');
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-  const chartEntries = filterByRange(entries, chartRange);
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
-  const handleLogWeight = (weight: number, note: string) => {
-    const today = new Date().toISOString().split('T')[0];
-    const newEntry: WeightEntry = {
-      id: Date.now(), date: today, weight,
-      note: note || undefined,
-    };
-    setEntries(prev => [...prev, newEntry]);
-    setShowLogModal(false);
+  const handleLogWeight = async (weight: number, note: string) => {
+    setIsSavingEntry(true);
+    try {
+      const payload: Record<string, unknown> = { weight };
+      if (note.trim()) payload.note = note.trim();
+
+      console.log('📤 Logging weight:', payload);
+      const { data } = await api.post(WEIGHT_BASE, payload);
+      console.log('📥 Log weight response:', JSON.stringify(data, null, 2));
+
+      setShowLogModal(false);
+      await fetchHistory();
+    } catch (error: any) {
+      console.log('❌ Log weight error:', error?.response?.status, JSON.stringify(error?.response?.data));
+      Alert.alert('Error', error?.response?.data?.weight?.[0] || 'Failed to log weight.');
+    } finally {
+      setIsSavingEntry(false);
+    }
   };
 
   const handleDeleteEntry = (id: number) => {
     Alert.alert('Delete Entry', 'Remove this weight entry?', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () =>
-        setEntries(prev => prev.filter(e => e.id !== id))
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const previous = entries;
+          setEntries(prev => prev.filter(e => e.id !== id)); // optimistic
+          try {
+            await api.delete(`${WEIGHT_BASE}${id}/`);
+          } catch (error: any) {
+            console.log('❌ Delete weight error:', error?.response?.status);
+            Alert.alert('Error', 'Failed to delete entry.');
+            setEntries(previous); // revert
+          }
+        },
       },
     ]);
   };
 
+  if (isLoading) {
+    return (
+      <View style={styles.loader}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  const sorted = [...entries].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const hasEntries = sorted.length > 0;
+
+  const currentWeight = sorted[0]?.weight ?? null;
+  const prevWeight    = sorted[1]?.weight ?? currentWeight;
+  const startWeight   = sorted[sorted.length - 1]?.weight ?? currentWeight;
+
+  const weekChange = currentWeight != null
+    ? currentWeight - (sorted.find(e => {
+        const diff = (new Date(sorted[0].date).getTime() - new Date(e.date).getTime()) / 86400000;
+        return diff >= 6;
+      })?.weight ?? currentWeight)
+    : 0;
+  const monthChange = currentWeight != null
+    ? currentWeight - (sorted.find(e => {
+        const diff = (new Date(sorted[0].date).getTime() - new Date(e.date).getTime()) / 86400000;
+        return diff >= 28;
+      })?.weight ?? currentWeight)
+    : 0;
+
+  const bmi         = currentWeight != null && heightCm ? calcBMI(currentWeight, heightCm) : null;
+  const bmiCategory = bmi != null ? getBMICategory(bmi) : null;
+
+  const hasTarget  = targetWeight != null && startWeight != null && startWeight !== targetWeight;
+  const totalLost  = currentWeight != null && startWeight != null ? startWeight - currentWeight : 0;
+  const remaining  = currentWeight != null && targetWeight != null ? currentWeight - targetWeight : 0;
+  const progressPct = hasTarget && currentWeight != null
+    ? Math.min(Math.max(((startWeight! - currentWeight) / (startWeight! - targetWeight!)) * 100, 0), 100)
+    : 0;
+
+  const chartEntries = filterByRange(entries, chartRange);
   const historyToShow = showAllHistory ? sorted : sorted.slice(0, 5);
 
   const changeColor = (val: number) => val < 0 ? '#4CAF50' : val > 0 ? '#E05C5C' : Colors.textMuted;
@@ -262,7 +338,6 @@ export default function WeightTrackerScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
           <Ionicons name="chevron-back" size={28} color={Colors.primary} />
@@ -274,239 +349,270 @@ export default function WeightTrackerScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchHistory(true)} tintColor={Colors.primary} />
+        }
+      >
 
-        {/* ── Current Weight Hero ── */}
-        <View style={styles.heroCard}>
-          <View style={styles.heroLeft}>
-            <Text style={styles.heroLabel}>Current Weight</Text>
-            <View style={styles.heroWeightRow}>
-              <Text style={styles.heroWeight}>{currentWeight}</Text>
-              <Text style={styles.heroUnit}>kg</Text>
-            </View>
-            <View style={styles.heroChangeRow}>
-              <Ionicons name={changeIcon(currentWeight - prevWeight)} size={14} color={changeColor(currentWeight - prevWeight)} />
-              <Text style={[styles.heroChange, { color: changeColor(currentWeight - prevWeight) }]}>
-                {currentWeight - prevWeight === 0
-                  ? 'No change'
-                  : `${Math.abs(currentWeight - prevWeight).toFixed(1)} kg from last entry`}
-              </Text>
-            </View>
-            <Text style={styles.heroDate}>Last logged: {formatFullDate(sorted[0]?.date ?? '')}</Text>
+        {!hasEntries ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="scale-outline" size={48} color={Colors.border} />
+            <Text style={styles.emptyTitle}>No weight logged yet</Text>
+            <Text style={styles.emptyText}>Tap "Log" above to record your first entry.</Text>
           </View>
-          <View style={styles.heroRight}>
-            <View style={styles.heroIconBox}>
-              <Ionicons name="scale-outline" size={36} color={Colors.primary} />
-            </View>
-          </View>
-        </View>
-
-        {/* ── Quick Stats ── */}
-        <View style={styles.statsRow}>
-          {[
-            { label: 'Start',    val: `${START_WEIGHT} kg`,  icon: 'flag-outline'         as const, color: Colors.primary },
-            { label: 'Lost',     val: `${totalLost.toFixed(1)} kg`, icon: 'trending-down-outline' as const, color: '#4CAF50' },
-            { label: 'Target',   val: `${TARGET_WEIGHT} kg`, icon: 'trophy-outline'       as const, color: '#FF9800' },
-            { label: 'To Go',    val: `${remaining > 0 ? remaining.toFixed(1) : '0'} kg`, icon: 'navigate-outline' as const, color: Colors.primary },
-          ].map((s, i) => (
-            <View key={i} style={styles.statCard}>
-              <View style={[styles.statIconBox, { backgroundColor: s.color + '18' }]}>
-                <Ionicons name={s.icon} size={16} color={s.color} />
+        ) : (
+          <>
+            <View style={styles.heroCard}>
+              <View style={styles.heroLeft}>
+                <Text style={styles.heroLabel}>Current Weight</Text>
+                <View style={styles.heroWeightRow}>
+                  <Text style={styles.heroWeight}>{currentWeight}</Text>
+                  <Text style={styles.heroUnit}>kg</Text>
+                </View>
+                <View style={styles.heroChangeRow}>
+                  <Ionicons name={changeIcon(currentWeight! - prevWeight!)} size={14} color={changeColor(currentWeight! - prevWeight!)} />
+                  <Text style={[styles.heroChange, { color: changeColor(currentWeight! - prevWeight!) }]}>
+                    {currentWeight === prevWeight
+                      ? 'No change'
+                      : `${Math.abs(currentWeight! - prevWeight!).toFixed(1)} kg from last entry`}
+                  </Text>
+                </View>
+                <Text style={styles.heroDate}>Last logged: {formatFullDate(sorted[0]?.date ?? '')}</Text>
               </View>
-              <Text style={styles.statVal}>{s.val}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* ── Progress to Target ── */}
-        <Text style={styles.sectionTitle}>Progress to Target</Text>
-        <View style={styles.progressCard}>
-          <View style={styles.progressTopRow}>
-            <View style={styles.progressLabelCol}>
-              <View style={styles.progressLabelRow}>
-                <Ionicons name="barbell-outline" size={14} color={Colors.textMuted} />
-                <Text style={styles.progressLabelText}>Start: {START_WEIGHT} kg</Text>
-              </View>
-              <View style={styles.progressLabelRow}>
-                <Ionicons name="trophy-outline" size={14} color="#FF9800" />
-                <Text style={styles.progressLabelText}>Target: {TARGET_WEIGHT} kg</Text>
+              <View style={styles.heroRight}>
+                <View style={styles.heroIconBox}>
+                  <Ionicons name="scale-outline" size={36} color={Colors.primary} />
+                </View>
               </View>
             </View>
-            <View style={styles.progressPctBadge}>
-              <Text style={styles.progressPctText}>{Math.round(progressPct)}%</Text>
-              <Text style={styles.progressPctSub}>complete</Text>
-            </View>
-          </View>
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${progressPct}%` }]} />
-            <View style={[styles.progressBarThumb, { left: `${Math.min(progressPct, 97)}%` as any }]} />
-          </View>
-          <View style={styles.progressFooter}>
-            <Text style={styles.progressFooterText}>
-              {remaining > 0
-                ? `${remaining.toFixed(1)} kg left to reach your goal`
-                : 'Goal reached! Set a new target.'}
-            </Text>
-            {remaining <= 0 && <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />}
-          </View>
-        </View>
 
-        {/* ── BMI Card ── */}
-        <Text style={styles.sectionTitle}>BMI Indicator</Text>
-        <View style={styles.bmiCard}>
-          <View style={styles.bmiLeft}>
-            <View style={styles.bmiValueRow}>
-              <Text style={styles.bmiValue}>{bmi}</Text>
-              <View style={[styles.bmiCategoryBadge, { backgroundColor: bmiCategory.color + '22' }]}>
-                <Text style={[styles.bmiCategoryText, { color: bmiCategory.color }]}>{bmiCategory.label}</Text>
-              </View>
+            <View style={styles.statsRow}>
+              {[
+                { label: 'Start',  val: startWeight != null ? `${startWeight} kg` : '—', icon: 'flag-outline' as const, color: Colors.primary },
+                { label: 'Lost',   val: `${totalLost.toFixed(1)} kg`, icon: 'trending-down-outline' as const, color: '#4CAF50' },
+                { label: 'Target', val: targetWeight != null ? `${targetWeight} kg` : 'Not set', icon: 'trophy-outline' as const, color: '#FF9800' },
+                { label: 'To Go',  val: hasTarget ? `${remaining > 0 ? remaining.toFixed(1) : '0'} kg` : '—', icon: 'navigate-outline' as const, color: Colors.primary },
+              ].map((s, i) => (
+                <View key={i} style={styles.statCard}>
+                  <View style={[styles.statIconBox, { backgroundColor: s.color + '18' }]}>
+                    <Ionicons name={s.icon} size={16} color={s.color} />
+                  </View>
+                  <Text style={styles.statVal}>{s.val}</Text>
+                  <Text style={styles.statLabel}>{s.label}</Text>
+                </View>
+              ))}
             </View>
-            <Text style={styles.bmiSub}>Based on {currentWeight} kg / {HEIGHT_CM} cm</Text>
-          </View>
-          <View style={styles.bmiScale}>
-            {[
-              { label: '<18.5', cat: 'Under',  color: '#2196F3' },
-              { label: '18.5–24.9', cat: 'Normal', color: '#4CAF50' },
-              { label: '25–29.9', cat: 'Over', color: '#FF9800' },
-              { label: '30+', cat: 'Obese',   color: '#E05C5C' },
-            ].map((b, i) => (
-              <View key={i} style={styles.bmiScaleItem}>
-                <View style={[styles.bmiScaleDot, {
-                  backgroundColor: b.color,
-                  transform: [{ scale: b.color === bmiCategory.color ? 1.3 : 1 }],
-                }]} />
-                <Text style={[styles.bmiScaleLabel, { color: b.color === bmiCategory.color ? b.color : Colors.textMuted }]}>
-                  {b.cat}
+
+            {hasTarget ? (
+              <>
+                <Text style={styles.sectionTitle}>Progress to Target</Text>
+                <View style={styles.progressCard}>
+                  <View style={styles.progressTopRow}>
+                    <View style={styles.progressLabelCol}>
+                      <View style={styles.progressLabelRow}>
+                        <Ionicons name="barbell-outline" size={14} color={Colors.textMuted} />
+                        <Text style={styles.progressLabelText}>Start: {startWeight} kg</Text>
+                      </View>
+                      <View style={styles.progressLabelRow}>
+                        <Ionicons name="trophy-outline" size={14} color="#FF9800" />
+                        <Text style={styles.progressLabelText}>Target: {targetWeight} kg</Text>
+                      </View>
+                    </View>
+                    <View style={styles.progressPctBadge}>
+                      <Text style={styles.progressPctText}>{Math.round(progressPct)}%</Text>
+                      <Text style={styles.progressPctSub}>complete</Text>
+                    </View>
+                  </View>
+                  <View style={styles.progressBarBg}>
+                    <View style={[styles.progressBarFill, { width: `${progressPct}%` }]} />
+                    <View style={[styles.progressBarThumb, { left: `${Math.min(progressPct, 97)}%` as any }]} />
+                  </View>
+                  <View style={styles.progressFooter}>
+                    <Text style={styles.progressFooterText}>
+                      {remaining > 0
+                        ? `${remaining.toFixed(1)} kg left to reach your goal`
+                        : 'Goal reached! Set a new target.'}
+                    </Text>
+                    {remaining <= 0 && <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />}
+                  </View>
+                </View>
+              </>
+            ) : (
+              <View style={styles.noTargetCard}>
+                <Ionicons name="flag-outline" size={18} color={Colors.textMuted} />
+                <Text style={styles.noTargetText}>
+                  Set a target weight in My Account to track progress here.
                 </Text>
               </View>
-            ))}
-          </View>
-        </View>
+            )}
 
-        {/* ── Weekly / Monthly Change ── */}
-        <Text style={styles.sectionTitle}>Weight Changes</Text>
-        <View style={styles.changeRow}>
-          <View style={styles.changeCard}>
-            <View style={styles.changeIconRow}>
-              <Ionicons name="calendar-outline" size={16} color={Colors.textMuted} />
-              <Text style={styles.changeCardLabel}>This Week</Text>
-            </View>
-            <View style={styles.changeValRow}>
-              <Ionicons name={changeIcon(weekChange)} size={18} color={changeColor(weekChange)} />
-              <Text style={[styles.changeVal, { color: changeColor(weekChange) }]}>
-                {weekChange === 0 ? '0.0' : Math.abs(weekChange).toFixed(1)} kg
-              </Text>
-            </View>
-            <Text style={styles.changeSub}>{weekChange < 0 ? 'Lost' : weekChange > 0 ? 'Gained' : 'No change'}</Text>
-          </View>
-          <View style={styles.changeCard}>
-            <View style={styles.changeIconRow}>
-              <Ionicons name="calendar-clear-outline" size={16} color={Colors.textMuted} />
-              <Text style={styles.changeCardLabel}>This Month</Text>
-            </View>
-            <View style={styles.changeValRow}>
-              <Ionicons name={changeIcon(monthChange)} size={18} color={changeColor(monthChange)} />
-              <Text style={[styles.changeVal, { color: changeColor(monthChange) }]}>
-                {monthChange === 0 ? '0.0' : Math.abs(monthChange).toFixed(1)} kg
-              </Text>
-            </View>
-            <Text style={styles.changeSub}>{monthChange < 0 ? 'Lost' : monthChange > 0 ? 'Gained' : 'No change'}</Text>
-          </View>
-          <View style={styles.changeCard}>
-            <View style={styles.changeIconRow}>
-              <Ionicons name="time-outline" size={16} color={Colors.textMuted} />
-              <Text style={styles.changeCardLabel}>Total</Text>
-            </View>
-            <View style={styles.changeValRow}>
-              <Ionicons name={changeIcon(currentWeight - START_WEIGHT)} size={18} color={changeColor(currentWeight - START_WEIGHT)} />
-              <Text style={[styles.changeVal, { color: changeColor(currentWeight - START_WEIGHT) }]}>
-                {Math.abs(currentWeight - START_WEIGHT).toFixed(1)} kg
-              </Text>
-            </View>
-            <Text style={styles.changeSub}>{currentWeight < START_WEIGHT ? 'Lost total' : 'Gained total'}</Text>
-          </View>
-        </View>
-
-        {/* ── Weight Chart ── */}
-        <Text style={styles.sectionTitle}>Weight History Chart</Text>
-        <View style={styles.chartCard}>
-          <View style={styles.chartRangeTabs}>
-            {(['1W','1M','3M','All'] as ChartRange[]).map(r => (
-              <TouchableOpacity
-                key={r}
-                style={[styles.rangeTab, chartRange === r && styles.rangeTabActive]}
-                onPress={() => setChartRange(r)} activeOpacity={0.7}
-              >
-                <Text style={[styles.rangeTabText, chartRange === r && styles.rangeTabTextActive]}>{r}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <LineChart entries={chartEntries} />
-        </View>
-
-        {/* ── Weight History Log ── */}
-        <Text style={styles.sectionTitle}>Log History</Text>
-        <View style={styles.historyCard}>
-          {historyToShow.map((entry, i) => {
-            const prev   = sorted[i + 1];
-            const change = prev ? entry.weight - prev.weight : 0;
-            return (
-              <TouchableOpacity
-                key={entry.id}
-                style={[styles.historyRow, i < historyToShow.length - 1 && styles.historyRowBorder]}
-                onLongPress={() => handleDeleteEntry(entry.id)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.historyIconBox}>
-                  <Ionicons name="scale-outline" size={16} color={Colors.primary} />
-                </View>
-                <View style={styles.historyCenter}>
-                  <Text style={styles.historyDate}>{formatFullDate(entry.date)}</Text>
-                  {entry.note && (
-                    <View style={styles.historyNoteRow}>
-                      <Ionicons name="chatbubble-outline" size={11} color={Colors.textMuted} />
-                      <Text style={styles.historyNote}>{entry.note}</Text>
+            {bmi != null && bmiCategory && (
+              <>
+                <Text style={styles.sectionTitle}>BMI Indicator</Text>
+                <View style={styles.bmiCard}>
+                  <View style={styles.bmiLeft}>
+                    <View style={styles.bmiValueRow}>
+                      <Text style={styles.bmiValue}>{bmi}</Text>
+                      <View style={[styles.bmiCategoryBadge, { backgroundColor: bmiCategory.color + '22' }]}>
+                        <Text style={[styles.bmiCategoryText, { color: bmiCategory.color }]}>{bmiCategory.label}</Text>
+                      </View>
                     </View>
-                  )}
+                    <Text style={styles.bmiSub}>Based on {currentWeight} kg / {Math.round(heightCm!)} cm</Text>
+                  </View>
+                  <View style={styles.bmiScale}>
+                    {[
+                      { label: '<18.5', cat: 'Under',  color: '#2196F3' },
+                      { label: '18.5–24.9', cat: 'Normal', color: '#4CAF50' },
+                      { label: '25–29.9', cat: 'Over', color: '#FF9800' },
+                      { label: '30+', cat: 'Obese',   color: '#E05C5C' },
+                    ].map((b, i) => (
+                      <View key={i} style={styles.bmiScaleItem}>
+                        <View style={[styles.bmiScaleDot, {
+                          backgroundColor: b.color,
+                          transform: [{ scale: b.color === bmiCategory.color ? 1.3 : 1 }],
+                        }]} />
+                        <Text style={[styles.bmiScaleLabel, { color: b.color === bmiCategory.color ? b.color : Colors.textMuted }]}>
+                          {b.cat}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-                <View style={styles.historyRight}>
-                  <Text style={styles.historyWeight}>{entry.weight} kg</Text>
-                  {prev && (
-                    <View style={styles.historyChangeRow}>
-                      <Ionicons name={changeIcon(change)} size={11} color={changeColor(change)} />
-                      <Text style={[styles.historyChange, { color: changeColor(change) }]}>
-                        {Math.abs(change).toFixed(1)}
-                      </Text>
+              </>
+            )}
+
+            <Text style={styles.sectionTitle}>Weight Changes</Text>
+            <View style={styles.changeRow}>
+              <View style={styles.changeCard}>
+                <View style={styles.changeIconRow}>
+                  <Ionicons name="calendar-outline" size={16} color={Colors.textMuted} />
+                  <Text style={styles.changeCardLabel}>This Week</Text>
+                </View>
+                <View style={styles.changeValRow}>
+                  <Ionicons name={changeIcon(weekChange)} size={18} color={changeColor(weekChange)} />
+                  <Text style={[styles.changeVal, { color: changeColor(weekChange) }]}>
+                    {weekChange === 0 ? '0.0' : Math.abs(weekChange).toFixed(1)} kg
+                  </Text>
+                </View>
+                <Text style={styles.changeSub}>{weekChange < 0 ? 'Lost' : weekChange > 0 ? 'Gained' : 'No change'}</Text>
+              </View>
+              <View style={styles.changeCard}>
+                <View style={styles.changeIconRow}>
+                  <Ionicons name="calendar-clear-outline" size={16} color={Colors.textMuted} />
+                  <Text style={styles.changeCardLabel}>This Month</Text>
+                </View>
+                <View style={styles.changeValRow}>
+                  <Ionicons name={changeIcon(monthChange)} size={18} color={changeColor(monthChange)} />
+                  <Text style={[styles.changeVal, { color: changeColor(monthChange) }]}>
+                    {monthChange === 0 ? '0.0' : Math.abs(monthChange).toFixed(1)} kg
+                  </Text>
+                </View>
+                <Text style={styles.changeSub}>{monthChange < 0 ? 'Lost' : monthChange > 0 ? 'Gained' : 'No change'}</Text>
+              </View>
+              <View style={styles.changeCard}>
+                <View style={styles.changeIconRow}>
+                  <Ionicons name="time-outline" size={16} color={Colors.textMuted} />
+                  <Text style={styles.changeCardLabel}>Total</Text>
+                </View>
+                <View style={styles.changeValRow}>
+                  <Ionicons name={changeIcon(currentWeight! - startWeight!)} size={18} color={changeColor(currentWeight! - startWeight!)} />
+                  <Text style={[styles.changeVal, { color: changeColor(currentWeight! - startWeight!) }]}>
+                    {Math.abs(currentWeight! - startWeight!).toFixed(1)} kg
+                  </Text>
+                </View>
+                <Text style={styles.changeSub}>{currentWeight! < startWeight! ? 'Lost total' : 'Gained total'}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.sectionTitle}>Weight History Chart</Text>
+            <View style={styles.chartCard}>
+              <View style={styles.chartRangeTabs}>
+                {(['1W','1M','3M','All'] as ChartRange[]).map(r => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.rangeTab, chartRange === r && styles.rangeTabActive]}
+                    onPress={() => setChartRange(r)} activeOpacity={0.7}
+                  >
+                    <Text style={[styles.rangeTabText, chartRange === r && styles.rangeTabTextActive]}>{r}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <LineChart entries={chartEntries} />
+            </View>
+
+            <Text style={styles.sectionTitle}>Log History</Text>
+            <View style={styles.historyCard}>
+              {historyToShow.map((entry, i) => {
+                const prev   = sorted[i + 1];
+                const change = prev ? entry.weight - prev.weight : 0;
+                return (
+                  <TouchableOpacity
+                    key={entry.id}
+                    style={[styles.historyRow, i < historyToShow.length - 1 && styles.historyRowBorder]}
+                    onLongPress={() => handleDeleteEntry(entry.id)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.historyIconBox}>
+                      <Ionicons name="scale-outline" size={16} color={Colors.primary} />
                     </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+                    <View style={styles.historyCenter}>
+                      <Text style={styles.historyDate}>{formatFullDate(entry.date)}</Text>
+                      {!!entry.note && (
+                        <View style={styles.historyNoteRow}>
+                          <Ionicons name="chatbubble-outline" size={11} color={Colors.textMuted} />
+                          <Text style={styles.historyNote}>{entry.note}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.historyRight}>
+                      <Text style={styles.historyWeight}>{entry.weight} kg</Text>
+                      {prev && (
+                        <View style={styles.historyChangeRow}>
+                          <Ionicons name={changeIcon(change)} size={11} color={changeColor(change)} />
+                          <Text style={[styles.historyChange, { color: changeColor(change) }]}>
+                            {Math.abs(change).toFixed(1)}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
 
-          {sorted.length > 5 && (
-            <TouchableOpacity style={styles.showMoreBtn} onPress={() => setShowAllHistory(!showAllHistory)} activeOpacity={0.7}>
-              <Ionicons name={showAllHistory ? 'chevron-up-outline' : 'chevron-down-outline'} size={16} color={Colors.primary} />
-              <Text style={styles.showMoreText}>{showAllHistory ? 'Show Less' : `Show All (${sorted.length})`}</Text>
-            </TouchableOpacity>
-          )}
-        </View>
+              {sorted.length > 5 && (
+                <TouchableOpacity style={styles.showMoreBtn} onPress={() => setShowAllHistory(!showAllHistory)} activeOpacity={0.7}>
+                  <Ionicons name={showAllHistory ? 'chevron-up-outline' : 'chevron-down-outline'} size={16} color={Colors.primary} />
+                  <Text style={styles.showMoreText}>{showAllHistory ? 'Show Less' : `Show All (${sorted.length})`}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
-        {/* ── Tip Card ── */}
-        <View style={styles.tipCard}>
-          <View style={styles.tipIconBox}>
-            <Ionicons name="bulb-outline" size={18} color={Colors.primary} />
-          </View>
-          <Text style={styles.tipText}>
-            Weigh yourself at the same time each day — ideally morning, after using the bathroom — for the most consistent results.
-          </Text>
-        </View>
+            <Text style={styles.longPressHint}>Tip: long-press an entry to delete it.</Text>
+
+            <View style={styles.tipCard}>
+              <View style={styles.tipIconBox}>
+                <Ionicons name="bulb-outline" size={18} color={Colors.primary} />
+              </View>
+              <Text style={styles.tipText}>
+                Weigh yourself at the same time each day — ideally morning, after using the bathroom — for the most consistent results.
+              </Text>
+            </View>
+          </>
+        )}
 
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      <LogWeightModal visible={showLogModal} onClose={() => setShowLogModal(false)} onSave={handleLogWeight} />
+      <LogWeightModal
+        visible={showLogModal}
+        onClose={() => setShowLogModal(false)}
+        onSave={handleLogWeight}
+        isSaving={isSavingEntry}
+      />
     </SafeAreaView>
   );
 }
@@ -515,6 +621,7 @@ export default function WeightTrackerScreen() {
 
 const styles = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: Colors.background },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, backgroundColor: Colors.primaryMuted },
   headerBtn:   { width: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.primary },
@@ -524,7 +631,15 @@ const styles = StyleSheet.create({
   scrollContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
   sectionTitle:  { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.textDark, marginBottom: Spacing.sm, marginTop: Spacing.md },
 
-  // Hero
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.lg * 3, gap: Spacing.sm },
+  emptyTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.textDark },
+  emptyText:  { fontSize: Fonts.sizes.sm, color: Colors.textMuted, textAlign: 'center', paddingHorizontal: Spacing.lg },
+
+  noTargetCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm },
+  noTargetText: { flex: 1, fontSize: Fonts.sizes.sm, color: Colors.textMuted },
+
+  longPressHint: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.sm },
+
   heroCard:      { backgroundColor: Colors.primaryMuted, borderRadius: BorderRadius.lg, padding: Spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
   heroLeft:      { flex: 1, gap: 4 },
   heroLabel:     { fontSize: Fonts.sizes.sm, color: Colors.textMuted, fontWeight: '600' },
@@ -537,14 +652,12 @@ const styles = StyleSheet.create({
   heroRight:     {},
   heroIconBox:   { width: 72, height: 72, borderRadius: 20, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center' },
 
-  // Stats
   statsRow:    { flexDirection: 'row', gap: 8, marginBottom: Spacing.sm },
   statCard:    { flex: 1, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.sm, alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.border },
   statIconBox: { width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   statVal:     { fontSize: Fonts.sizes.sm, fontWeight: '800', color: Colors.textDark },
   statLabel:   { fontSize: 10, color: Colors.textMuted },
 
-  // Progress
   progressCard:    { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md },
   progressTopRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   progressLabelCol:{ gap: 4 },
@@ -559,7 +672,6 @@ const styles = StyleSheet.create({
   progressFooter:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
   progressFooterText:{ fontSize: Fonts.sizes.sm, color: Colors.textMuted, flex: 1 },
 
-  // BMI
   bmiCard:          { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md },
   bmiLeft:          { gap: 4 },
   bmiValueRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
@@ -572,7 +684,6 @@ const styles = StyleSheet.create({
   bmiScaleDot:      { width: 12, height: 12, borderRadius: 6 },
   bmiScaleLabel:    { fontSize: 10, fontWeight: '600' },
 
-  // Changes
   changeRow:      { flexDirection: 'row', gap: 8, marginBottom: Spacing.sm },
   changeCard:     { flex: 1, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.sm, borderWidth: 1, borderColor: Colors.border, gap: 4 },
   changeIconRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
@@ -581,7 +692,6 @@ const styles = StyleSheet.create({
   changeVal:      { fontSize: Fonts.sizes.lg, fontWeight: '800' },
   changeSub:      { fontSize: 10, color: Colors.textMuted },
 
-  // Chart
   chartCard:       { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md },
   chartRangeTabs:  { flexDirection: 'row', gap: 8 },
   rangeTab:        { paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: BorderRadius.full, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.background },
@@ -589,7 +699,6 @@ const styles = StyleSheet.create({
   rangeTabText:    { fontSize: Fonts.sizes.sm, fontWeight: '600', color: Colors.textMuted },
   rangeTabTextActive:{ color: Colors.primary },
 
-  // History
   historyCard:      { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
   historyRow:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, gap: Spacing.sm },
   historyRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
@@ -605,13 +714,10 @@ const styles = StyleSheet.create({
   showMoreBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
   showMoreText:     { fontSize: Fonts.sizes.sm, fontWeight: '600', color: Colors.primary },
 
-  // Tip
   tipCard:    { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: Colors.primaryMuted, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: Spacing.sm, marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.primary },
   tipIconBox: { width: 34, height: 34, borderRadius: 10, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center' },
   tipText:    { flex: 1, fontSize: Fonts.sizes.sm, color: Colors.textDark, lineHeight: 20 },
 });
-
-// ─── Chart Styles ─────────────────────────────────────────────────────────────
 
 const chart = StyleSheet.create({
   container: { position: 'relative' },
@@ -623,8 +729,6 @@ const chart = StyleSheet.create({
   empty:     { height: CHART_HEIGHT, justifyContent: 'center', alignItems: 'center', gap: 8 },
   emptyText: { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
 });
-
-// ─── Modal Styles ─────────────────────────────────────────────────────────────
 
 const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
