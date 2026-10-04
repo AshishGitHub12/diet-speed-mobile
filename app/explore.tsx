@@ -1,2 +1,2 @@
-import ExploreScreen from '../src/screens/home/ExploreWorkoutsScreen';
-export default ExploreScreen;
+import ExploreWorkoutsScreen from '../src/screens/home/ExploreWorkoutsScreen';
+export default ExploreWorkoutsScreen;

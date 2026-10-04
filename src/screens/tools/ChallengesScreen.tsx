@@ -1,105 +1,145 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
+import api from '@/src/services/api';
 
-// ─── Static Data ──────────────────────────────────────────────────────────────
+const CHALLENGES_BASE = '/challenges/';
 
-const CHALLENGES = [
-  {
-    id: '1',
-    title: '7-Day Water Challenge',
-    description: 'Drink 8 glasses of water every day for 7 days.',
-    icon: '💧',
-    duration: '7 days',
-    difficulty: 'Easy',
-    participants: 1240,
-    joined: false,
-  },
-  {
-    id: '2',
-    title: '30-Day Weight Loss',
-    description: 'Follow a structured diet and workout plan to lose weight in 30 days.',
-    icon: '⚖️',
-    duration: '30 days',
-    difficulty: 'Medium',
-    participants: 3560,
-    joined: false,
-  },
-  {
-    id: '3',
-    title: '10K Steps Daily',
-    description: 'Walk at least 10,000 steps every day for 14 days.',
-    icon: '👟',
-    duration: '14 days',
-    difficulty: 'Medium',
-    participants: 2890,
-    joined: false,
-  },
-  {
-    id: '4',
-    title: 'No Sugar Week',
-    description: 'Avoid all added sugars for 7 days. Reset your cravings!',
-    icon: '🚫',
-    duration: '7 days',
-    difficulty: 'Hard',
-    participants: 987,
-    joined: false,
-  },
-  {
-    id: '5',
-    title: 'Morning Workout',
-    description: 'Complete a 20-minute workout every morning for 21 days.',
-    icon: '🏋️',
-    duration: '21 days',
-    difficulty: 'Medium',
-    participants: 1450,
-    joined: false,
-  },
-  {
-    id: '6',
-    title: 'Protein Goal',
-    description: 'Hit your daily protein target every day for 14 days.',
-    icon: '🥩',
-    duration: '14 days',
-    difficulty: 'Easy',
-    participants: 2100,
-    joined: false,
-  },
-];
+// ─── Types — match ChallengeSerializer exactly ─────────────────────────────────
+
+interface Challenge {
+  id: number;
+  title: string;
+  description: string;
+  icon: string;
+  duration_days: number;
+  difficulty: 'Easy' | 'Medium' | 'Hard';
+  participants: number;
+  joined: boolean;
+  user_challenge_id: number | null;
+  current_streak: number;
+  progress_percent: number;
+  checked_in_today: boolean;
+  status: 'active' | 'completed' | 'abandoned' | null;
+}
 
 const DIFFICULTY_COLORS: Record<string, string> = {
-  Easy:   '#4CAF50',
+  Easy: '#4CAF50',
   Medium: '#FF9800',
-  Hard:   '#F44336',
+  Hard: '#F44336',
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ChallengesScreen() {
   const router = useRouter();
-  const [challenges, setChallenges] = useState(CHALLENGES);
+  const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [busyId, setBusyId] = useState<number | null>(null);
 
   const filters = ['All', 'Easy', 'Medium', 'Hard'];
-  const joined = challenges.filter(c => c.joined);
 
-  const filtered = activeFilter === 'All'
-    ? challenges
-    : challenges.filter(c => c.difficulty === activeFilter);
+  const fetchChallenges = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setIsLoading(true);
+    try {
+      const { data } = await api.get<Challenge[]>(CHALLENGES_BASE);
+      setChallenges(data);
+    } catch (error: any) {
+      console.log('❌ Challenges fetch error:', error?.response?.status, JSON.stringify(error?.response?.data));
+      Alert.alert('Error', 'Failed to load challenges.');
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-  const toggleJoin = (id: string) => {
-    setChallenges(prev => prev.map(c =>
-      c.id === id ? { ...c, joined: !c.joined } : c
-    ));
+  useFocusEffect(
+    useCallback(() => {
+      fetchChallenges();
+    }, [fetchChallenges])
+  );
+
+  const joined = challenges.filter((c) => c.joined && c.status === 'active');
+  const filtered = activeFilter === 'All' ? challenges : challenges.filter((c) => c.difficulty === activeFilter);
+
+  const toggleJoin = async (challenge: Challenge) => {
+    if (busyId) return;
+    setBusyId(challenge.id);
+    const wasJoined = challenge.joined;
+
+    // Optimistic update
+    setChallenges((prev) =>
+      prev.map((c) =>
+        c.id === challenge.id
+          ? { ...c, joined: !wasJoined, status: !wasJoined ? 'active' : null, current_streak: 0, progress_percent: 0, checked_in_today: false }
+          : c
+      )
+    );
+
+    try {
+      if (wasJoined) {
+        await api.post(`${CHALLENGES_BASE}${challenge.id}/leave/`);
+      } else {
+        await api.post(`${CHALLENGES_BASE}${challenge.id}/join/`);
+      }
+      await fetchChallenges();
+    } catch (error: any) {
+      console.log('❌ Join/leave error:', error?.response?.status, JSON.stringify(error?.response?.data));
+      Alert.alert('Error', 'Something went wrong. Please try again.');
+      await fetchChallenges(); // revert to real state
+    } finally {
+      setBusyId(null);
+    }
   };
+
+  const checkIn = async (challenge: Challenge) => {
+    if (busyId) return;
+    setBusyId(challenge.id);
+
+    const previous = challenges;
+    setChallenges((prev) =>
+      prev.map((c) =>
+        c.id === challenge.id
+          ? { ...c, checked_in_today: true, current_streak: c.current_streak + 1 }
+          : c
+      )
+    );
+
+    try {
+      await api.post(`${CHALLENGES_BASE}${challenge.id}/checkin/`);
+      await fetchChallenges();
+    } catch (error: any) {
+      console.log('❌ Check-in error:', error?.response?.status, JSON.stringify(error?.response?.data));
+      setChallenges(previous);
+      Alert.alert('Error', error?.response?.data?.detail || 'Could not check in today.');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -117,6 +157,9 @@ export default function ChallengesScreen() {
         style={styles.flex}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={() => fetchChallenges(true)} tintColor={Colors.primary} />
+        }
       >
         {/* Joined summary */}
         {joined.length > 0 && (
@@ -125,10 +168,13 @@ export default function ChallengesScreen() {
             <Text style={styles.joinedCount}>{joined.length} challenge{joined.length > 1 ? 's' : ''} in progress</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.joinedRow}>
-                {joined.map(c => (
+                {joined.map((c) => (
                   <View key={c.id} style={styles.joinedChip}>
                     <Text style={styles.joinedChipIcon}>{c.icon}</Text>
                     <Text style={styles.joinedChipText}>{c.title}</Text>
+                    <View style={styles.joinedChipStreak}>
+                      <Text style={styles.joinedChipStreakText}>🔥 {c.current_streak}</Text>
+                    </View>
                   </View>
                 ))}
               </View>
@@ -139,7 +185,7 @@ export default function ChallengesScreen() {
         {/* Filter pills */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
           <View style={styles.filterRow}>
-            {filters.map(f => (
+            {filters.map((f) => (
               <TouchableOpacity
                 key={f}
                 style={[styles.filterPill, activeFilter === f && styles.filterPillActive]}
@@ -155,42 +201,108 @@ export default function ChallengesScreen() {
 
         {/* Challenge cards */}
         <View style={styles.challengesList}>
-          {filtered.map(challenge => (
-            <View key={challenge.id} style={styles.challengeCard}>
-              <View style={styles.challengeTop}>
-                <View style={styles.challengeIconWrapper}>
-                  <Text style={styles.challengeIcon}>{challenge.icon}</Text>
-                </View>
-                <View style={styles.challengeInfo}>
-                  <Text style={styles.challengeTitle}>{challenge.title}</Text>
-                  <View style={styles.challengeMeta}>
-                    <Text style={styles.challengeDuration}>⏱ {challenge.duration}</Text>
-                    <View style={[styles.diffBadge, { backgroundColor: DIFFICULTY_COLORS[challenge.difficulty] + '20' }]}>
-                      <Text style={[styles.diffText, { color: DIFFICULTY_COLORS[challenge.difficulty] }]}>
-                        {challenge.difficulty}
-                      </Text>
+          {filtered.map((challenge) => {
+            const isBusy = busyId === challenge.id;
+            const isActive = challenge.joined && challenge.status === 'active';
+            const isCompleted = challenge.status === 'completed';
+
+            return (
+              <View key={challenge.id} style={styles.challengeCard}>
+                <View style={styles.challengeTop}>
+                  <View style={styles.challengeIconWrapper}>
+                    <Text style={styles.challengeIcon}>{challenge.icon}</Text>
+                  </View>
+                  <View style={styles.challengeInfo}>
+                    <Text style={styles.challengeTitle}>{challenge.title}</Text>
+                    <View style={styles.challengeMeta}>
+                      <Text style={styles.challengeDuration}>⏱ {challenge.duration_days} days</Text>
+                      <View style={[styles.diffBadge, { backgroundColor: DIFFICULTY_COLORS[challenge.difficulty] + '20' }]}>
+                        <Text style={[styles.diffText, { color: DIFFICULTY_COLORS[challenge.difficulty] }]}>
+                          {challenge.difficulty}
+                        </Text>
+                      </View>
+                      {isCompleted && (
+                        <View style={styles.completedBadge}>
+                          <Text style={styles.completedBadgeText}>✓ Completed</Text>
+                        </View>
+                      )}
                     </View>
                   </View>
                 </View>
-              </View>
 
-              <Text style={styles.challengeDesc}>{challenge.description}</Text>
+                <Text style={styles.challengeDesc}>{challenge.description}</Text>
 
-              <View style={styles.challengeBottom}>
-                <Text style={styles.participants}>
-                  👥 {challenge.participants.toLocaleString()} joined
-                </Text>
-                <TouchableOpacity
-                  style={[styles.joinBtn, challenge.joined && styles.joinBtnActive]}
-                  onPress={() => toggleJoin(challenge.id)}
-                >
-                  <Text style={[styles.joinText, challenge.joined && styles.joinTextActive]}>
-                    {challenge.joined ? '✓ Joined' : 'Join Now'}
+                {isActive && (
+                  <View style={styles.progressBlock}>
+                    <View style={styles.progressTopRow}>
+                      <Text style={styles.progressLabel}>
+                        🔥 {challenge.current_streak}/{challenge.duration_days} days
+                      </Text>
+                      <Text style={styles.progressPercent}>{challenge.progress_percent}%</Text>
+                    </View>
+                    <View style={styles.progressTrack}>
+                      <View style={[styles.progressFill, { width: `${challenge.progress_percent}%` }]} />
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.challengeBottom}>
+                  <Text style={styles.participants}>
+                    👥 {challenge.participants.toLocaleString()} joined
                   </Text>
-                </TouchableOpacity>
+
+                  {!isActive ? (
+                    <TouchableOpacity
+                      style={[styles.joinBtn, challenge.joined && styles.joinBtnActive, isBusy && styles.btnDisabled]}
+                      onPress={() => toggleJoin(challenge)}
+                      disabled={isBusy}
+                    >
+                      {isBusy ? (
+                        <ActivityIndicator size="small" color={challenge.joined ? Colors.white : Colors.primary} />
+                      ) : (
+                        <Text style={[styles.joinText, challenge.joined && styles.joinTextActive]}>
+                          {isCompleted ? 'Join Again' : 'Join Now'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.activeActionsRow}>
+                      <TouchableOpacity
+                        style={styles.leaveBtn}
+                        onPress={() => toggleJoin(challenge)}
+                        disabled={isBusy}
+                      >
+                        <Text style={styles.leaveText}>Leave</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.checkInBtn,
+                          challenge.checked_in_today && styles.checkInBtnDone,
+                          isBusy && styles.btnDisabled,
+                        ]}
+                        onPress={() => checkIn(challenge)}
+                        disabled={isBusy || challenge.checked_in_today}
+                      >
+                        {isBusy ? (
+                          <ActivityIndicator size="small" color={Colors.white} />
+                        ) : (
+                          <Text style={styles.checkInText}>
+                            {challenge.checked_in_today ? '✓ Done Today' : 'Check In Today'}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
               </View>
+            );
+          })}
+
+          {filtered.length === 0 && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateText}>No {activeFilter !== 'All' ? activeFilter.toLowerCase() : ''} challenges right now.</Text>
             </View>
-          ))}
+          )}
         </View>
 
         <View style={{ height: 120 }} />
@@ -204,6 +316,7 @@ export default function ChallengesScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   flex: { flex: 1 },
+  loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -225,12 +338,14 @@ const styles = StyleSheet.create({
   joinedCount: { fontSize: Fonts.sizes.sm, color: 'rgba(255,255,255,0.8)' },
   joinedRow: { flexDirection: 'row', gap: 8 },
   joinedChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: BorderRadius.full,
-    paddingHorizontal: 10, paddingVertical: 4,
+    paddingHorizontal: 10, paddingVertical: 6,
   },
   joinedChipIcon: { fontSize: 14 },
   joinedChipText: { fontSize: 12, color: Colors.white, fontWeight: '500' },
+  joinedChipStreak: { backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: BorderRadius.full, paddingHorizontal: 6, paddingVertical: 1 },
+  joinedChipStreakText: { fontSize: 11, color: Colors.white, fontWeight: '700' },
 
   // Filters
   filterScroll: { marginBottom: Spacing.md },
@@ -261,18 +376,45 @@ const styles = StyleSheet.create({
   challengeIcon: { fontSize: 24 },
   challengeInfo: { flex: 1, gap: 4 },
   challengeTitle: { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.textDark },
-  challengeMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  challengeMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   challengeDuration: { fontSize: 12, color: Colors.textMuted },
   diffBadge: { borderRadius: BorderRadius.full, paddingHorizontal: 8, paddingVertical: 2 },
   diffText: { fontSize: 11, fontWeight: '600' },
+  completedBadge: { backgroundColor: '#4CAF5020', borderRadius: BorderRadius.full, paddingHorizontal: 8, paddingVertical: 2 },
+  completedBadgeText: { fontSize: 11, fontWeight: '700', color: '#4CAF50' },
   challengeDesc: { fontSize: Fonts.sizes.sm, color: Colors.textMuted, lineHeight: 20 },
+
+  progressBlock: { gap: 6 },
+  progressTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  progressLabel: { fontSize: 12, fontWeight: '600', color: Colors.textDark },
+  progressPercent: { fontSize: 12, fontWeight: '700', color: Colors.primary },
+  progressTrack: { height: 6, borderRadius: 6, backgroundColor: Colors.border, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 6, backgroundColor: Colors.primary },
+
   challengeBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   participants: { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
   joinBtn: {
     backgroundColor: Colors.primaryMuted, borderRadius: BorderRadius.full,
-    paddingHorizontal: 16, paddingVertical: 6,
+    paddingHorizontal: 16, paddingVertical: 6, minWidth: 90, alignItems: 'center',
   },
   joinBtnActive: { backgroundColor: Colors.primary },
   joinText: { fontSize: Fonts.sizes.sm, color: Colors.primary, fontWeight: '600' },
   joinTextActive: { color: Colors.white },
+  btnDisabled: { opacity: 0.6 },
+
+  activeActionsRow: { flexDirection: 'row', gap: 8 },
+  leaveBtn: {
+    borderRadius: BorderRadius.full, paddingHorizontal: 14, paddingVertical: 6,
+    borderWidth: 1, borderColor: Colors.border,
+  },
+  leaveText: { fontSize: Fonts.sizes.sm, color: Colors.textMuted, fontWeight: '600' },
+  checkInBtn: {
+    backgroundColor: Colors.primary, borderRadius: BorderRadius.full,
+    paddingHorizontal: 14, paddingVertical: 6, minWidth: 110, alignItems: 'center',
+  },
+  checkInBtnDone: { backgroundColor: '#4CAF50' },
+  checkInText: { fontSize: Fonts.sizes.sm, color: Colors.white, fontWeight: '600' },
+
+  emptyState: { paddingVertical: 40, alignItems: 'center' },
+  emptyStateText: { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
 });

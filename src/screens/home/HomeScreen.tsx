@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,13 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useAppDispatch, useAppSelector } from '@/src/redux/hooks';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useAppDispatch } from '@/src/redux/hooks';
 import { setHomeData } from '@/src/redux/userSlice';
 import api from '@/src/services/api';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
@@ -27,41 +29,27 @@ const ICON_CHALLENGES = require('@/assets/icons/challenges.png');
 const ICON_HEALTH     = require('@/assets/icons/health.png');
 const ICON_PLAY       = require('@/assets/icons/play.png');
 
+const CONTENT_BASE = '/content/';
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface HomeData {
+interface HomeUserData {
   user: {
     name: string; current_weight: number; target_weight: number; bmi: number; bmi_category: string;
     calories_consumed_today: number; calorie_goal: number;
   };
   date: { today_date: string; day_name: string };
-  success_stories: { id: number; name: string; result: string; image: string }[];
-  recipes: { id: number; name: string; image: string; calories: number }[];
-  workouts: { id: number; title: string; thumbnail: string; video_url: string; duration: string }[];
 }
 
-// ─── Dummy Data (used when API returns empty) ─────────────────────────────────
-
-const DUMMY_STORIES = [
-  { id: 1, name: 'Rahul',  result: 'Lost 10kg in 3 months',  image: '' },
-  { id: 2, name: 'Neha',   result: 'Lost 8kg in 2 months',   image: '' },
-  { id: 3, name: 'Arjun',  result: 'Lost 15kg in 5 months',  image: '' },
-  { id: 4, name: 'Priya',  result: 'Lost 6kg in 6 weeks',    image: '' },
-];
-
-const DUMMY_WORKOUTS = [
-  { id: 1, title: 'Full Body Workout',    thumbnail: '', video_url: '', duration: '30 min' },
-  { id: 2, title: 'Morning Yoga Flow',    thumbnail: '', video_url: '', duration: '20 min' },
-  { id: 3, title: 'HIIT Cardio Blast',    thumbnail: '', video_url: '', duration: '25 min' },
-  { id: 4, title: 'Core Strength',        thumbnail: '', video_url: '', duration: '15 min' },
-];
-
-const DUMMY_RECIPES = [
-  { id: 1, name: 'Oats Smoothie Bowl',    image: '', calories: 320 },
-  { id: 2, name: 'Grilled Chicken Salad', image: '', calories: 410 },
-  { id: 3, name: 'Avocado Toast',         image: '', calories: 280 },
-  { id: 4, name: 'Protein Pancakes',      image: '', calories: 350 },
-];
+interface SuccessStory {
+  id: number; name: string; photo_url: string; weight_lost_kg: number | null; duration_text: string;
+}
+interface ExploreVideo {
+  id: number; title: string; subtitle: string; thumbnail_url: string; duration_minutes: number;
+}
+interface Recipe {
+  id: number; title: string; image_url: string; calories: number; prep_time_minutes: number;
+}
 
 const STORY_COLORS = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#E05C5C'];
 
@@ -78,66 +66,75 @@ const SectionHeader = ({ title, onViewMore }: { title: string; onViewMore?: () =
   <View style={sectionStyles.row}>
     <Text style={sectionStyles.title}>{title}</Text>
     {onViewMore && (
-      <TouchableOpacity onPress={onViewMore}>
-        <Text style={sectionStyles.viewMore}>View More</Text>
+      <TouchableOpacity onPress={onViewMore} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <View style={sectionStyles.viewMoreRow}>
+          <Text style={sectionStyles.viewMore}>View More</Text>
+          <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
+        </View>
       </TouchableOpacity>
     )}
   </View>
 );
 
 const sectionStyles = StyleSheet.create({
-  row:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  title:    { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.primary },
-  viewMore: { fontSize: Fonts.sizes.sm, color: Colors.primary, fontWeight: '500' },
+  row:          { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  title:        { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.textDark },
+  viewMoreRow:  { flexDirection: 'row', alignItems: 'center', gap: 1 },
+  viewMore:     { fontSize: Fonts.sizes.sm, color: Colors.primary, fontWeight: '600' },
 });
 
-// ─── Skeleton Card ────────────────────────────────────────────────────────────
+// ─── Animated Shimmer Skeleton ────────────────────────────────────────────────
 
 const SkeletonCard = ({ width, height }: { width: number; height: number }) => {
-  const [opacity] = useState(0.5);
+  const pulse = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 650, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.4, duration: 650, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
   return (
     <View style={[skeletonStyles.card, { width, height }]}>
-      <View style={skeletonStyles.shimmer} />
+      <Animated.View style={[skeletonStyles.shimmer, { opacity: pulse }]} />
     </View>
   );
 };
 
 const skeletonStyles = StyleSheet.create({
   card:    { borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.primaryMuted },
-  shimmer: { flex: 1, backgroundColor: Colors.border, opacity: 0.6 },
+  shimmer: { flex: 1, backgroundColor: Colors.border },
 });
 
-// ─── Story Placeholder ────────────────────────────────────────────────────────
+// ─── Fallback visuals (used only if a card has no image yet) ──────────────────
 
-const StoryPlaceholder = ({ name, index }: { name: string; index: number }) => {
+const InitialsAvatar = ({ name, index }: { name: string; index: number }) => {
   const color = STORY_COLORS[index % STORY_COLORS.length];
-  const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const initials = name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
   return (
-    <View style={[placeholderStyles.container, { backgroundColor: color + '22' }]}>
-      <View style={[placeholderStyles.circle, { backgroundColor: color }]}>
-        <Text style={placeholderStyles.initials}>{initials}</Text>
+    <View style={[fallbackStyles.container, { backgroundColor: color + '22' }]}>
+      <View style={[fallbackStyles.circle, { backgroundColor: color }]}>
+        <Text style={fallbackStyles.initials}>{initials}</Text>
       </View>
-      <Ionicons name="person-outline" size={32} color={color} style={{ opacity: 0.3, position: 'absolute' }} />
     </View>
   );
 };
 
-const placeholderStyles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  circle:    { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
-  initials:  { fontSize: 20, fontWeight: '800', color: '#fff' },
-});
-
-// ─── Workout Placeholder ──────────────────────────────────────────────────────
-
-const WorkoutPlaceholder = () => (
-  <View style={workoutPlaceholderStyles.container}>
-    <Ionicons name="videocam-outline" size={36} color={Colors.primary} style={{ opacity: 0.4 }} />
+const IconFallback = ({ name }: { name: keyof typeof Ionicons.glyphMap }) => (
+  <View style={fallbackStyles.container}>
+    <Ionicons name={name} size={32} color={Colors.primary} style={{ opacity: 0.35 }} />
   </View>
 );
 
-const workoutPlaceholderStyles = StyleSheet.create({
+const fallbackStyles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primaryMuted },
+  circle:    { width: 56, height: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
+  initials:  { fontSize: 20, fontWeight: '800', color: '#fff' },
 });
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -145,27 +142,46 @@ const workoutPlaceholderStyles = StyleSheet.create({
 export default function HomeScreen() {
   const router   = useRouter();
   const dispatch = useAppDispatch();
-  const [homeData, setHomeDataLocal]     = useState<HomeData | null>(null);
-  const [isLoading, setIsLoading]        = useState(true);
-  const [refreshing, setRefreshing]      = useState(false);
+
+  const [homeData, setHomeDataLocal] = useState<HomeUserData | null>(null);
+  const [stories, setStories]       = useState<SuccessStory[]>([]);
+  const [workouts, setWorkouts]     = useState<ExploreVideo[]>([]);
+  const [recipes, setRecipes]       = useState<Recipe[]>([]);
+
+  const [isLoading, setIsLoading]             = useState(true);
+  const [refreshing, setRefreshing]           = useState(false);
   const [storiesLoading, setStoriesLoading]   = useState(true);
   const [workoutsLoading, setWorkoutsLoading] = useState(true);
   const [recipesLoading, setRecipesLoading]   = useState(true);
 
   const fetchHome = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
+    else {
+      setIsLoading(true);
+      setStoriesLoading(true);
+      setWorkoutsLoading(true);
+      setRecipesLoading(true);
+    }
     try {
-      const res = await api.get('/home/');
-      setHomeDataLocal(res.data);
-      dispatch(setHomeData(res.data));
+      const [homeRes, storiesRes, workoutsRes, recipesRes] = await Promise.all([
+        api.get('/home/'),
+        api.get<SuccessStory[]>(`${CONTENT_BASE}success-stories/`, { params: { featured: 'true' } }),
+        api.get<ExploreVideo[]>(`${CONTENT_BASE}explore/`, { params: { featured: 'true' } }),
+        api.get<Recipe[]>(`${CONTENT_BASE}recipes/`, { params: { featured: 'true' } }),
+      ]);
+      setHomeDataLocal(homeRes.data);
+      dispatch(setHomeData(homeRes.data));
+      setStories(storiesRes.data);
+      setWorkouts(workoutsRes.data);
+      setRecipes(recipesRes.data);
     } catch (e) {
       console.log('❌ Home fetch error:', e);
     } finally {
       setIsLoading(false);
       setRefreshing(false);
-      setTimeout(() => setStoriesLoading(false),  400);
-      setTimeout(() => setWorkoutsLoading(false),  700);
-      setTimeout(() => setRecipesLoading(false),  1000);
+      setStoriesLoading(false);
+      setWorkoutsLoading(false);
+      setRecipesLoading(false);
     }
   }, [dispatch]);
 
@@ -185,10 +201,6 @@ export default function HomeScreen() {
       </View>
     );
   }
-
-  const stories  = homeData?.success_stories?.length  ? homeData.success_stories  : DUMMY_STORIES;
-  const workouts = homeData?.workouts?.length          ? homeData.workouts          : DUMMY_WORKOUTS;
-  const recipes  = homeData?.recipes?.length           ? homeData.recipes           : DUMMY_RECIPES;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -238,7 +250,7 @@ export default function HomeScreen() {
 
         {/* ── Tools ── */}
         <View style={styles.section}>
-          <SectionHeader title="Tools" onViewMore={() => {}} />
+          <SectionHeader title="Tools" />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.toolsRow}>
               <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/tools/weight-tracker' as any)}>
@@ -277,26 +289,42 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <SectionHeader title="Success Stories" onViewMore={() => router.push('/success-stories')} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.storiesRow}>
+            <View style={styles.cardsRow}>
               {storiesLoading
-                ? [1, 2, 3].map(i => <SkeletonCard key={i} width={160} height={210} />)
+                ? [1, 2, 3].map((i) => <SkeletonCard key={i} width={158} height={212} />)
                 : stories.map((story, index) => (
-                    <TouchableOpacity key={story.id} style={styles.storyCard} activeOpacity={0.85}>
-                      {story.image
-                        ? <Image source={{ uri: story.image }} style={styles.storyImage} />
-                        : <StoryPlaceholder name={story.name} index={index} />
+                    <TouchableOpacity
+                      key={story.id}
+                      style={styles.storyCard}
+                      activeOpacity={0.9}
+                      onPress={() => router.push('/success-stories')}
+                    >
+                      {story.photo_url
+                        ? <Image source={{ uri: story.photo_url }} style={styles.cardImage} />
+                        : <InitialsAvatar name={story.name} index={index} />
                       }
-                      <View style={styles.storyOverlay}>
+                      <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.75)']}
+                        locations={[0.35, 1]}
+                        style={styles.cardGradient}
+                      >
                         <View style={styles.storyBadge}>
                           <Ionicons name="star" size={10} color="#FFD700" />
                           <Text style={styles.storyBadgeText}>Success</Text>
                         </View>
                         <Text style={styles.storyName} numberOfLines={1}>{story.name}</Text>
-                        <Text style={styles.storyResult} numberOfLines={2}>{story.result}</Text>
-                      </View>
+                        {story.weight_lost_kg != null && (
+                          <Text style={styles.storyResult} numberOfLines={1}>
+                            Lost {story.weight_lost_kg}kg {story.duration_text}
+                          </Text>
+                        )}
+                      </LinearGradient>
                     </TouchableOpacity>
                   ))
               }
+              {!storiesLoading && stories.length === 0 && (
+                <Text style={styles.emptyRowText}>No success stories yet.</Text>
+              )}
             </View>
           </ScrollView>
         </View>
@@ -305,32 +333,44 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <SectionHeader title="Explore" onViewMore={() => router.push('/explore')} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.exploreRow}>
+            <View style={styles.cardsRow}>
               {workoutsLoading
-                ? [1, 2, 3].map(i => <SkeletonCard key={i} width={220} height={150} />)
-                : workouts.map(workout => (
-                    <TouchableOpacity key={workout.id} style={styles.exploreCard} activeOpacity={0.85}>
-                      {workout.thumbnail
-                        ? <Image source={{ uri: workout.thumbnail }} style={styles.exploreImage} />
-                        : <WorkoutPlaceholder />
+                ? [1, 2, 3].map((i) => <SkeletonCard key={i} width={220} height={150} />)
+                : workouts.map((workout) => (
+                    <TouchableOpacity
+                      key={workout.id}
+                      style={styles.exploreCard}
+                      activeOpacity={0.9}
+                      onPress={() => router.push({ pathname: '/explore', params: { videoId: String(workout.id) } })}
+                    >
+                      {workout.thumbnail_url
+                        ? <Image source={{ uri: workout.thumbnail_url }} style={styles.cardImage} />
+                        : <IconFallback name="videocam-outline" />
                       }
                       <View style={styles.playBtn}>
                         <Image source={ICON_PLAY} style={styles.playImg} resizeMode="contain" />
                       </View>
                       <View style={styles.durationChip}>
                         <Ionicons name="time-outline" size={11} color="#fff" />
-                        <Text style={styles.durationText}>{workout.duration}</Text>
+                        <Text style={styles.chipText}>{workout.duration_minutes} min</Text>
                       </View>
-                      <View style={styles.exploreOverlay}>
+                      <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.75)']}
+                        locations={[0.4, 1]}
+                        style={styles.cardGradient}
+                      >
                         <Text style={styles.exploreTitle} numberOfLines={1}>{workout.title}</Text>
                         <View style={styles.exploreMetaRow}>
-                          <Ionicons name="barbell-outline" size={11} color="rgba(255,255,255,0.8)" />
-                          <Text style={styles.exploreMetaText}>Workout Video</Text>
+                          <Ionicons name="barbell-outline" size={11} color="rgba(255,255,255,0.85)" />
+                          <Text style={styles.exploreMetaText}>{workout.subtitle || 'Workout Video'}</Text>
                         </View>
-                      </View>
+                      </LinearGradient>
                     </TouchableOpacity>
                   ))
               }
+              {!workoutsLoading && workouts.length === 0 && (
+                <Text style={styles.emptyRowText}>No videos yet.</Text>
+              )}
             </View>
           </ScrollView>
         </View>
@@ -339,36 +379,41 @@ export default function HomeScreen() {
         <View style={styles.section}>
           <SectionHeader title="Recipes" onViewMore={() => router.push('/recipes')} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.recipesRow}>
+            <View style={styles.cardsRow}>
               {recipesLoading
-                ? [1, 2, 3].map(i => <SkeletonCard key={i} width={170} height={180} />)
-                : recipes.map(recipe => (
-                    <TouchableOpacity key={recipe.id} style={styles.recipeCard} activeOpacity={0.85}>
-                      {recipe.image
-                        ? <Image source={{ uri: recipe.image }} style={styles.recipeImage} />
-                        : (
-                          <View style={styles.recipePlaceholder}>
-                            <Ionicons name="restaurant-outline" size={36} color={Colors.primary} style={{ opacity: 0.4 }} />
-                          </View>
-                        )
+                ? [1, 2, 3].map((i) => <SkeletonCard key={i} width={168} height={180} />)
+                : recipes.map((recipe) => (
+                    <TouchableOpacity
+                      key={recipe.id}
+                      style={styles.recipeCard}
+                      activeOpacity={0.9}
+                      onPress={() => router.push({ pathname: '/recipes', params: { recipeId: String(recipe.id) } })}
+                    >
+                      {recipe.image_url
+                        ? <Image source={{ uri: recipe.image_url }} style={styles.cardImage} />
+                        : <IconFallback name="restaurant-outline" />
                       }
-                      <View style={styles.playBtn}>
-                        <Image source={ICON_PLAY} style={styles.playImg} resizeMode="contain" />
-                      </View>
                       <View style={styles.calChip}>
                         <Ionicons name="flame-outline" size={11} color="#fff" />
-                        <Text style={styles.calChipText}>{recipe.calories} cal</Text>
+                        <Text style={styles.chipText}>{recipe.calories} cal</Text>
                       </View>
-                      <View style={styles.recipeOverlay}>
-                        <Text style={styles.recipeTitle} numberOfLines={2}>{recipe.name}</Text>
+                      <LinearGradient
+                        colors={['transparent', 'rgba(0,0,0,0.75)']}
+                        locations={[0.4, 1]}
+                        style={styles.cardGradient}
+                      >
+                        <Text style={styles.recipeTitle} numberOfLines={2}>{recipe.title}</Text>
                         <View style={styles.recipeMetaRow}>
-                          <Ionicons name="time-outline" size={11} color="rgba(255,255,255,0.8)" />
-                          <Text style={styles.recipeMetaText}>Watch Recipe</Text>
+                          <Ionicons name="time-outline" size={11} color="rgba(255,255,255,0.85)" />
+                          <Text style={styles.recipeMetaText}>{recipe.prep_time_minutes} min</Text>
                         </View>
-                      </View>
+                      </LinearGradient>
                     </TouchableOpacity>
                   ))
               }
+              {!recipesLoading && recipes.length === 0 && (
+                <Text style={styles.emptyRowText}>No recipes yet.</Text>
+              )}
             </View>
           </ScrollView>
         </View>
@@ -401,53 +446,67 @@ const styles = StyleSheet.create({
   greetingHello:     { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
   greetingName:      { fontSize: Fonts.sizes.xl, fontWeight: '700', color: Colors.textDark },
 
-  dateCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4, marginBottom: Spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  dateCard: {
+    backgroundColor: Colors.white, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4,
+    marginBottom: Spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 2,
+  },
   dateDayName:  { fontSize: Fonts.sizes.sm, color: Colors.textMuted, marginBottom: 2 },
   dateFullDate: { fontSize: Fonts.sizes.md, fontWeight: '600', color: Colors.textDark },
 
   section: { marginBottom: Spacing.lg },
 
   toolsRow: { flexDirection: 'row', gap: 12, paddingBottom: 4 },
-  toolCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, width: 160, height: 160, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4, justifyContent: 'space-between', alignItems: 'center' },
+  toolCard: {
+    backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, width: 160, height: 160,
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 4,
+    justifyContent: 'space-between', alignItems: 'center',
+  },
   toolImg:   { width: 40, height: 40 },
   toolTitle: { fontSize: Fonts.sizes.md, fontWeight: '600', color: Colors.primary, lineHeight: 22, textAlign: 'center' },
   toolSub:   { fontSize: Fonts.sizes.sm, color: Colors.textDark, lineHeight: 18, textAlign: 'center' },
 
-  storiesRow: { flexDirection: 'row', gap: 12, paddingBottom: 4 },
-  storyCard:  { width: 160, height: 210, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.primaryMuted },
-  storyImage: { width: '100%', height: '100%', position: 'absolute' },
-  storyOverlay: {
+  // Shared card row + image + gradient overlay, reused by all three sections.
+  cardsRow:    { flexDirection: 'row', gap: 12, paddingBottom: 4 },
+  cardImage:   { width: '100%', height: '100%', position: 'absolute' },
+  cardGradient: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    padding: Spacing.sm, gap: 3,
-    paddingBottom: Spacing.sm + 2,
+    paddingHorizontal: Spacing.sm, paddingTop: Spacing.lg, paddingBottom: Spacing.sm + 2, gap: 3,
   },
-  storyBadge:     { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 2 },
+  emptyRowText: { fontSize: Fonts.sizes.sm, color: Colors.textMuted, paddingVertical: Spacing.lg },
+
+  storyCard: {
+    width: 158, height: 212, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.primaryMuted,
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 4,
+  },
+  storyBadge:     { flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: BorderRadius.full, paddingHorizontal: 7, paddingVertical: 2, marginBottom: 3 },
   storyBadgeText: { fontSize: 10, color: '#FFD700', fontWeight: '700' },
   storyName:      { fontSize: Fonts.sizes.sm, color: '#fff', fontWeight: '700', lineHeight: 18 },
-  storyResult:    { fontSize: 11, color: 'rgba(255,255,255,0.85)', lineHeight: 15, marginTop: 1 },
+  storyResult:    { fontSize: 11, color: 'rgba(255,255,255,0.9)', lineHeight: 15, marginTop: 1 },
 
-  exploreRow:  { flexDirection: 'row', gap: 12, paddingBottom: 4 },
-  exploreCard: { width: 220, height: 150, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.primaryMuted },
-  exploreImage: { width: '100%', height: '100%', position: 'absolute' },
+  exploreCard: {
+    width: 220, height: 150, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.primaryMuted,
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 4,
+  },
   durationChip: { position: 'absolute', top: Spacing.sm, right: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: BorderRadius.full, paddingHorizontal: 8, paddingVertical: 3 },
-  durationText: { fontSize: 10, color: '#fff', fontWeight: '600' },
-  exploreOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: Spacing.sm, gap: 3 },
+  chipText:     { fontSize: 10, color: '#fff', fontWeight: '600' },
   exploreTitle:   { fontSize: Fonts.sizes.sm, color: '#fff', fontWeight: '700', lineHeight: 18 },
   exploreMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  exploreMetaText:{ fontSize: 11, color: 'rgba(255,255,255,0.8)' },
+  exploreMetaText:{ fontSize: 11, color: 'rgba(255,255,255,0.85)' },
 
-  recipesRow:  { flexDirection: 'row', gap: 12, paddingBottom: 4 },
-  recipeCard:  { width: 170, height: 180, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.primaryMuted },
-  recipeImage: { width: '100%', height: '100%', position: 'absolute' },
-  recipePlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.primaryMuted },
+  recipeCard: {
+    width: 168, height: 180, borderRadius: BorderRadius.lg, overflow: 'hidden', backgroundColor: Colors.primaryMuted,
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 4,
+  },
   calChip:     { position: 'absolute', top: Spacing.sm, right: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: BorderRadius.full, paddingHorizontal: 8, paddingVertical: 3 },
-  calChipText: { fontSize: 10, color: '#fff', fontWeight: '600' },
-  recipeOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', padding: Spacing.sm, gap: 3 },
   recipeTitle:   { fontSize: Fonts.sizes.sm, color: '#fff', fontWeight: '700', lineHeight: 18 },
   recipeMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  recipeMetaText:{ fontSize: 11, color: 'rgba(255,255,255,0.8)' },
+  recipeMetaText:{ fontSize: 11, color: 'rgba(255,255,255,0.85)' },
 
-  playBtn:  { position: 'absolute', top: '50%', left: '50%', marginTop: -18, marginLeft: -18, width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.9)', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
-  playImg:  { width: 16, height: 16 },
+  playBtn: {
+    position: 'absolute', top: '50%', left: '50%', marginTop: -18, marginLeft: -18, width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.92)', justifyContent: 'center', alignItems: 'center',
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 4,
+  },
+  playImg: { width: 16, height: 16 },
 });
