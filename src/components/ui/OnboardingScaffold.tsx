@@ -10,10 +10,23 @@ import {
   Image,
   KeyboardAvoidingView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
 import OnboardingProgress from '@/src/components/ui/Onboardingprogress';
 import PrimaryButton from '@/src/components/ui/PrimaryButton';
+
+// ─── Shared design tokens (same system as Home / Weight / Meal / Diet /
+// Workout / Login / Register) ───────────────────────────────────────────────
+
+const LIME = '#B9F24C';
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
 
 interface OnboardingScaffoldProps {
   totalSteps: number;
@@ -48,8 +61,33 @@ const OnboardingScaffold: React.FC<OnboardingScaffoldProps> = ({
 }) => {
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.progressWrapper}>
-        <OnboardingProgress totalSteps={totalSteps} currentStep={currentStep - 1} />
+      {/* Dark hero header — same pattern as Home/Login/Register */}
+      <View style={styles.heroCard}>
+        <View style={styles.heroBlobA} />
+        <View style={styles.heroBlobB} />
+
+        <View style={styles.progressWrapper}>
+          <OnboardingProgress totalSteps={totalSteps} currentStep={currentStep - 1} />
+        </View>
+
+        {showLogo && (
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('../../../assets/images/logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+          </View>
+        )}
+
+        {eyebrow && (
+          <View style={styles.eyebrowPill}>
+            <View style={styles.eyebrowDot} />
+            <Text style={styles.eyebrowText}>{eyebrow}</Text>
+          </View>
+        )}
+        <Text style={styles.heading}>{title}</Text>
+        {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
       </View>
 
       <KeyboardAvoidingView
@@ -63,21 +101,9 @@ const OnboardingScaffold: React.FC<OnboardingScaffoldProps> = ({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {showLogo && (
-            <View style={styles.logoContainer}>
-              <Image
-                source={require('../../../assets/images/logo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-              />
-            </View>
-          )}
-
-          {eyebrow && <Text style={styles.eyebrow}>{eyebrow}</Text>}
-          <Text style={styles.heading}>{title}</Text>
-          {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
-
-          <View style={styles.body}>{children}</View>
+          <View style={[styles.bodyCard, leafRadius(BorderRadius.xl)]}>
+            <View style={styles.body}>{children}</View>
+          </View>
         </ScrollView>
 
         <View style={styles.bottomBar}>
@@ -89,7 +115,7 @@ const OnboardingScaffold: React.FC<OnboardingScaffoldProps> = ({
                 onPress={onPrevious}
                 activeOpacity={0.75}
               >
-                <Text style={styles.previousText}>Previous</Text>
+                <Ionicons name="arrow-back" size={18} color={Colors.primary} />
               </TouchableOpacity>
             )}
             <View style={styles.primaryWrapper}>
@@ -111,10 +137,80 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   flex: { flex: 1 },
 
+  heroCard: {
+    backgroundColor: Colors.textDark,
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.xl,
+    overflow: 'hidden',
+    alignItems: 'center',
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
+  heroBlobA: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    top: -90,
+    right: -70,
+  },
+  heroBlobB: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    bottom: -60,
+    left: -40,
+  },
+
   progressWrapper: {
+    width: '100%',
     paddingTop: Platform.OS === 'android' ? Spacing.lg : Spacing.sm,
-    paddingHorizontal: Spacing.md,
     paddingBottom: Spacing.sm,
+  },
+
+  logoContainer: {
+    marginBottom: Spacing.sm,
+    alignItems: 'center',
+  },
+  logo: { width: 140, height: 50, tintColor: Colors.white },
+
+  eyebrowPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: Spacing.sm,
+  },
+  eyebrowDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: LIME },
+  eyebrowText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.white,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  heading: {
+    fontSize: Fonts.sizes.xl,
+    fontWeight: '800',
+    color: Colors.white,
+    textAlign: 'center',
+    lineHeight: 28,
+    letterSpacing: -0.3,
+  },
+
+  subtitle: {
+    fontSize: Fonts.sizes.sm,
+    color: 'rgba(255,255,255,0.65)',
+    textAlign: 'center',
+    marginTop: 6,
+    fontWeight: '500',
   },
 
   scrollContent: {
@@ -123,40 +219,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  logoContainer: {
-    marginTop: Spacing.md,
-    marginBottom: Spacing.md,
-    alignItems: 'center',
-  },
-  logo: { width: 160, height: 60 },
-
-  eyebrow: {
-    fontSize: Fonts.sizes.sm,
-    fontWeight: '700',
-    color: Colors.primary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-    textAlign: 'center',
+  bodyCard: {
+    width: '100%',
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    marginTop: Spacing.lg,
+    shadowColor: Colors.textDark,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
 
-  heading: {
-    fontSize: Fonts.sizes.xl,
-    fontWeight: '600',
-    color: Colors.textDark,
-    textAlign: 'center',
-    lineHeight: 30,
-    marginBottom: Spacing.sm,
-  },
-
-  subtitle: {
-    fontSize: Fonts.sizes.sm,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginBottom: Spacing.md,
-  },
-
-  body: { width: '100%', gap: 12, marginTop: Spacing.sm },
+  body: { width: '100%', gap: 12 },
 
   footerNote: {
     fontSize: Fonts.sizes.sm,
@@ -181,7 +256,7 @@ const styles = StyleSheet.create({
   },
 
   previousButton: {
-    flex: 1,
+    width: 56,
     height: 56,
     borderRadius: BorderRadius.xl,
     borderWidth: 1.5,
@@ -190,13 +265,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: Colors.white,
   },
-  previousText: {
-    fontSize: Fonts.sizes.md,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
 
-  primaryWrapper: { flex: 2 },
+  primaryWrapper: { flex: 1 },
 });
 
 export default OnboardingScaffold;

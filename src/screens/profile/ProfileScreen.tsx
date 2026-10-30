@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppDispatch } from '@/src/redux/hooks';
 import { logout } from '@/src/redux/authSlice';
 import { setProfile, resetUser } from '@/src/redux/userSlice';
@@ -20,6 +21,32 @@ import { clearOnboardingProgress } from '@/src/utils/onboardingStore';
 import { clearTokens } from '@/src/utils/secureStore';
 import api from '@/src/services/api';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
+
+// ─── Shared design tokens (same system as Home / Weight / Meal / Diet /
+// Workout / Login / Register / Onboarding / Tabs) ───────────────────────────
+
+const Accent = {
+  gold: '#B9892E',
+  plum: '#6E5A8C',
+  teal: '#3E7CA6',
+  berry: '#8B3A42',
+};
+
+const Tint = {
+  mint: '#E1EEDD',
+  peach: '#F5E6D3',
+  lilac: '#E7E2F0',
+  sky: '#DCEAF2',
+};
+
+const LIME = '#B9F24C';
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,24 +67,37 @@ interface Profile {
 // ─── Sub Components ───────────────────────────────────────────────────────────
 
 const MenuRow = ({ label, onPress }: { label: string; onPress: () => void }) => (
-  <TouchableOpacity style={styles.menuRow} onPress={onPress} activeOpacity={0.7}>
+  <TouchableOpacity style={[styles.menuRow, leafRadius(BorderRadius.lg)]} onPress={onPress} activeOpacity={0.7}>
     <Text style={styles.menuLabel}>{label}</Text>
-    <Text style={styles.menuChevron}>›</Text>
+    <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
   </TouchableOpacity>
 );
 
-const QuickCard = ({ icon, label, onPress }: { 
-    icon: ImageSourcePropType; 
-    label: string; 
-    onPress: () => void 
-  }) => (
-    <TouchableOpacity style={styles.quickCard} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.quickIconWrapper}>
-        <Image source={icon} style={styles.quickIcon} />
-      </View>
-      <Text style={styles.quickLabel}>{label}</Text>
-    </TouchableOpacity>
-  );
+const QUICK_TINTS = [Tint.mint, Tint.peach, Tint.lilac];
+const QUICK_ACCENTS = [Colors.primary, Accent.gold, Accent.plum];
+
+const QuickCard = ({
+  icon,
+  label,
+  onPress,
+  index,
+}: {
+  icon: ImageSourcePropType;
+  label: string;
+  onPress: () => void;
+  index: number;
+}) => (
+  <TouchableOpacity
+    style={[styles.quickCard, leafRadius(BorderRadius.lg), { backgroundColor: QUICK_TINTS[index % QUICK_TINTS.length] }]}
+    onPress={onPress}
+    activeOpacity={0.85}
+  >
+    <View style={[styles.quickIconWrapper, { backgroundColor: Colors.white }]}>
+      <Image source={icon} style={styles.quickIcon} />
+    </View>
+    <Text style={styles.quickLabel}>{label}</Text>
+  </TouchableOpacity>
+);
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -162,11 +202,11 @@ export default function ProfileScreen() {
       {/* ── Header ── */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-          <Text style={styles.headerBack}>‹</Text>
+          <Ionicons name="chevron-back" size={20} color={Colors.textDark} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Profile</Text>
-        <TouchableOpacity style={styles.headerBtn} onPress={() => router.push('/notifications')} >
-        <Image source={require('@/assets/icons/Bell.png')} style={styles.iconSm} /> 
+        <TouchableOpacity style={styles.headerBtn} onPress={() => router.push('/notifications')}>
+          <Ionicons name="notifications-outline" size={19} color={Colors.textDark} />
         </TouchableOpacity>
       </View>
 
@@ -176,51 +216,59 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
 
-        {/* ── Profile Card ── */}
+        {/* ── Profile Hero Card ── */}
         {/* No edit button here — use My Account for editing */}
-        <View style={styles.profileCard}>
-          <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>
-              {getInitials(profile?.name ?? 'U')}
-            </Text>
-          </View>
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{profile?.name ?? '—'}</Text>
-            <Text style={styles.profileSub}>
-              {capitalize(profile?.gender ?? '')} • {profile?.dob ? formatDob(profile.dob) : '—'}
-            </Text>
-          </View>
-        </View>
+        <View style={[styles.profileCard, leafRadius(BorderRadius.xl)]}>
+          <View style={styles.heroBlobA} />
+          <View style={styles.heroBlobB} />
 
-        {/* ── Stats Row ── */}
-        <View style={styles.statsRow}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.weight ?? '—'}</Text>
-            <Text style={styles.statLabel}>Weight (kg)</Text>
+          <View style={styles.profileTopRow}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarText}>
+                {getInitials(profile?.name ?? 'U')}
+              </Text>
+            </View>
+            <View style={styles.profileInfo}>
+              <Text style={styles.profileName}>{profile?.name ?? '—'}</Text>
+              <Text style={styles.profileSub}>
+                {capitalize(profile?.gender ?? '')} • {profile?.dob ? formatDob(profile.dob) : '—'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.bmi ?? '—'}</Text>
-            <Text style={styles.statLabel}>BMI</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.target_weight ?? '—'}</Text>
-            <Text style={styles.statLabel}>Target (kg)</Text>
+
+          {/* ── Stats Row (now inside the hero) ── */}
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <View style={styles.statDot} />
+              <Text style={styles.statValue}>{profile?.weight ?? '—'}</Text>
+              <Text style={styles.statLabel}>Weight (kg)</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <View style={[styles.statDot, { backgroundColor: '#8FD6FF' }]} />
+              <Text style={styles.statValue}>{profile?.target_weight ?? '—'}</Text>
+              <Text style={styles.statLabel}>Target (kg)</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <View style={[styles.statDot, { backgroundColor: '#FFC56B' }]} />
+              <Text style={styles.statValue}>{profile?.bmi ?? '—'}</Text>
+              <Text style={styles.statLabel}>BMI</Text>
+            </View>
           </View>
         </View>
 
         {/* ── Quick Actions ── */}
         {/* My Account → all user details + edit info */}
         <View style={styles.quickRow}>
-          <QuickCard icon={require('@/assets/icons/myaccount.png')} label="My Account" onPress={() => router.push('/my-account')} />
-          <QuickCard icon={require('@/assets/icons/mygoals.png')} label="My Goals"   onPress={() => router.push('/my-goal')} />
-          <QuickCard icon={require('@/assets/icons/myplan.png')} label="My Plan"    onPress={() => router.push('/my-plan')} />
+          <QuickCard index={0} icon={require('@/assets/icons/myaccount.png')} label="My Account" onPress={() => router.push('/my-account')} />
+          <QuickCard index={1} icon={require('@/assets/icons/mygoals.png')} label="Streaks"   onPress={() => router.push('/streak-badges' as any)} />
+          <QuickCard index={2} icon={require('@/assets/icons/myplan.png')} label="Summary"    onPress={() => router.push('/summary')} />
         </View>
 
         {/* ── More ── */}
         <Text style={styles.sectionTitle}>More</Text>
-        <View style={styles.menuGroup}>
+        {/* <View style={styles.menuGroup}>
         <MenuRow label="Track my Programs"  onPress={() => router.push('/profile/track-programs' as any)} />
         <MenuRow label="Progress Reports"   onPress={() => router.push('/profile/progress-reports' as any)} />
         <MenuRow label="Health Logs"        onPress={() => router.push('/profile/health-logs' as any)} />
@@ -228,10 +276,10 @@ export default function ProfileScreen() {
           <MenuRow label="Favorites"          onPress={() => router.push('/profile/favorites' as any)} />
           <MenuRow label="Connected Devices"  onPress={() => router.push('/profile/connected-devices' as any)} />
           <MenuRow label="Reminders"          onPress={() => router.push('/profile/reminders' as any)} />
-        </View>
+        </View> */}
 
         {/* ── About ── */}
-        <Text style={styles.sectionTitle}>About</Text>
+        {/* <Text style={styles.sectionTitle}>About</Text> */}
         <View style={styles.menuGroup}>
           <MenuRow label="Contact Us"          onPress={() => {}} />
           <MenuRow label="Terms & Conditions"  onPress={() => {}} />
@@ -244,6 +292,7 @@ export default function ProfileScreen() {
           onPress={handleLogout}
           activeOpacity={0.85}
         >
+          <Ionicons name="log-out-outline" size={18} color={Colors.error} />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
 
@@ -265,79 +314,95 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
 
-  // Header — green tinted background like Figma
+  // Header — flat bg + bordered circular buttons, matching Weight/Meal/Diet
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 2,
-    backgroundColor: Colors.primaryMuted,
+    backgroundColor: Colors.background,
   },
-  headerBtn: { width: 40, alignItems: 'center', justifyContent: 'center' },
-  headerBack: { fontSize: 30, color: Colors.primary, fontWeight: '300', lineHeight: 34 },
-  headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.primary },
-  headerBell: { fontSize: 20 },
+  headerBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+  },
+  headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '800', color: Colors.textDark },
 
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
+  scrollContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.sm },
 
-//   quickIcon: { width: 6, height: 16, resizeMode: 'contain' },
-
-  iconSm: { width: 22, height: 22, resizeMode: 'contain' },
-
-  // Profile Card — green tinted, no edit button
+  // Profile Hero Card — dark, same pattern as Home calorie card
   profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.primaryMuted,
-    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.textDark,
     padding: Spacing.md,
     marginBottom: Spacing.md,
+    overflow: 'hidden',
+    shadowColor: Colors.textDark,
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  heroBlobA: {
+    position: 'absolute', width: 180, height: 180, borderRadius: 90,
+    backgroundColor: 'rgba(255,255,255,0.04)', top: -70, right: -60,
+  },
+  heroBlobB: {
+    position: 'absolute', width: 120, height: 120, borderRadius: 60,
+    backgroundColor: 'rgba(255,255,255,0.03)', bottom: -50, left: -30,
+  },
+  profileTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: Spacing.md,
+    marginBottom: Spacing.md,
   },
   avatarCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.primary,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: LIME,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  avatarText: { fontSize: 22, fontWeight: '700', color: Colors.white },
+  avatarText: { fontSize: 20, fontWeight: '800', color: Colors.textDark },
   profileInfo: { flex: 1 },
   profileName: {
     fontSize: Fonts.sizes.xl,
-    fontWeight: '700',
-    color: Colors.primary,
+    fontWeight: '800',
+    color: Colors.white,
+    letterSpacing: -0.3,
   },
   profileSub: {
     fontSize: Fonts.sizes.sm,
-    color: Colors.textMuted,
+    color: 'rgba(255,255,255,0.6)',
     marginTop: 3,
+    fontWeight: '500',
   },
 
-  // Stats Row
+  // Stats Row (inside hero card)
   statsRow: {
     flexDirection: 'row',
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.md,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
   },
-  statItem: { flex: 1, alignItems: 'center', gap: 4 },
+  statItem: { flex: 1, alignItems: 'center', gap: 2 },
+  statDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: LIME, marginBottom: 2 },
   statValue: {
-    fontSize: Fonts.sizes.xl,
-    fontWeight: '700',
-    color: Colors.primary,
+    fontSize: Fonts.sizes.lg,
+    fontWeight: '800',
+    color: Colors.white,
   },
-  statLabel: { fontSize: 11, color: Colors.textMuted },
-  statDivider: { width: 1, backgroundColor: Colors.border, marginVertical: 4 },
+  statLabel: { fontSize: 10.5, color: 'rgba(255,255,255,0.55)', fontWeight: '600' },
+  statDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 2 },
 
   // Quick Actions
   quickRow: {
@@ -347,33 +412,30 @@ const styles = StyleSheet.create({
   },
   quickCard: {
     flex: 1,
-    backgroundColor: Colors.primaryMuted,
-    borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.sm,
     alignItems: 'center',
     gap: 8,
   },
   quickIconWrapper: {
-    width: 60,
-    height: 60,
+    width: 52,
+    height: 52,
     borderRadius: 16,
-    // backgroundColor: Colors.white,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  quickIcon: { width: 48, height: 48, resizeMode: 'contain' },
+  quickIcon: { width: 40, height: 40, resizeMode: 'contain' },
   quickLabel: {
     fontSize: Fonts.sizes.sm,
     color: Colors.textDark,
-    fontWeight: '500',
+    fontWeight: '700',
     textAlign: 'center',
   },
 
   // Section title
   sectionTitle: {
     fontSize: Fonts.sizes.lg,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.textDark,
     marginBottom: Spacing.sm,
   },
@@ -385,27 +447,29 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md + 2,
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  menuLabel: { fontSize: Fonts.sizes.md, color: Colors.textDark },
-  menuChevron: { fontSize: 22, color: Colors.textMuted },
+  menuLabel: { fontSize: Fonts.sizes.md, color: Colors.textDark, fontWeight: '600' },
 
   // Logout
   logoutBtn: {
-    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.white,
+    borderWidth: 1.5,
+    borderColor: Colors.error,
     borderRadius: BorderRadius.full,
     height: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   logoutText: {
     fontSize: Fonts.sizes.md,
     fontWeight: '700',
-    color: Colors.white,
-    letterSpacing: 0.5,
+    color: Colors.error,
+    letterSpacing: 0.3,
   },
 });

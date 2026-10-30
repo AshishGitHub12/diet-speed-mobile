@@ -1,2 +1,2 @@
-import ProgressReportScreen from '../../src/screens/profile/ProgressReportsScreen';
+import ProgressReportScreen from '../../src/screens/profile/ProgressSummaryScreen';
 export default ProgressReportScreen;

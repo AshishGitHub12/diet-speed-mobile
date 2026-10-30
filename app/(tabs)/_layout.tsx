@@ -3,6 +3,11 @@ import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../src/constants/theme';
 
+// ─── Shared design tokens (same system as Home / Weight / Meal / Diet /
+// Workout / Login / Register / Onboarding) ─────────────────────────────────
+
+const LIME = '#B9F24C';
+
 // ─── Local Icon Assets ────────────────────────────────────────────────────────
 
 const ICON_HOME    = require('@/assets/icons/home.png');
@@ -31,6 +36,9 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
       { bottom: Math.max(insets.bottom, 12) + 2 },
     ]}>
       <View style={styles.tabBarPill}>
+        {/* Soft decorative blob, same language as the dark hero cards elsewhere */}
+        <View style={styles.pillBlob} />
+
         {state.routes.map((route: any, index: number) => {
           const { options } = descriptors[route.key];
           const isFocused = state.index === index;
@@ -53,11 +61,16 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
               onPress={onPress}
               activeOpacity={0.7}
             >
-              <Image
-                source={icons[route.name]}
-                style={[styles.tabIcon, { opacity: isFocused ? 1 : 0.4 }]}
-                resizeMode="contain"
-              />
+              <View style={[styles.iconChip, isFocused && styles.iconChipActive]}>
+                <Image
+                  source={icons[route.name]}
+                  style={[
+                    styles.tabIcon,
+                    { tintColor: isFocused ? Colors.textDark : 'rgba(255,255,255,0.55)' },
+                  ]}
+                  resizeMode="contain"
+                />
+              </View>
               {isFocused && (
                 <Text style={styles.tabLabel}>
                   {options.title || route.name}
@@ -99,35 +112,53 @@ const styles = StyleSheet.create({
   },
   tabBarPill: {
     flexDirection: 'row',
-    backgroundColor: '#D6E8D0',
+    backgroundColor: Colors.textDark,
     borderRadius: 50,
     paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     width: '100%',
     justifyContent: 'space-around',
     alignItems: 'center',
-    shadowColor: '#317039',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 10,
+    overflow: 'hidden',
+    shadowColor: Colors.textDark,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 14,
     elevation: 8,
-    borderWidth: 1,
-    borderColor: '#D0DCC8',
+  },
+  pillBlob: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    top: -60,
+    right: -40,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
+    paddingVertical: 2,
     gap: 3,
   },
+  iconChip: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconChipActive: {
+    backgroundColor: LIME,
+  },
   tabIcon: {
-    width: 26,
-    height: 26,
+    width: 20,
+    height: 20,
   },
   tabLabel: {
-    fontSize: 11,
-    color: Colors.primary,
-    fontWeight: '600',
+    fontSize: 10.5,
+    color: Colors.white,
+    fontWeight: '700',
   },
 });

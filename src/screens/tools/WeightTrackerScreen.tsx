@@ -18,6 +18,21 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CHART_WIDTH  = SCREEN_WIDTH - 32 - Spacing.md * 2;
 const CHART_HEIGHT = 160;
 
+// ─── Shared design system (matches HomeScreen) ─────────────────────────────────
+// Same leaf-corner card shape and pastel tint family used across Home, so this
+// screen reads as part of the same app instead of a different template.
+
+const Accent = { gold: '#B9892E', plum: '#6E5A8C', teal: '#3E7CA6', berry: '#8B3A42' };
+const Tint   = { mint: '#E1EEDD', peach: '#F5E6D3', lilac: '#E7E2F0', sky: '#DCEAF2' };
+const LIME   = '#B9F24C'; // the one bright accent, used only on the dark hero
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
+
 // ─── Types — match WeightLogSerializer + WeightHistoryView response ───────────
 
 interface WeightEntry {
@@ -50,9 +65,9 @@ const toHeightCm = (height: number | null, unit: string | null): number | null =
 
 const getBMICategory = (bmi: number) => {
   if (bmi < 18.5) return { label: 'Underweight', color: '#2196F3' };
-  if (bmi < 25)   return { label: 'Normal',       color: '#4CAF50' };
-  if (bmi < 30)   return { label: 'Overweight',   color: '#FF9800' };
-  return               { label: 'Obese',          color: '#E05C5C' };
+  if (bmi < 25)   return { label: 'Normal',       color: Colors.primary };
+  if (bmi < 30)   return { label: 'Overweight',   color: Accent.gold };
+  return               { label: 'Obese',          color: Colors.error };
 };
 
 const formatDate = (dateStr: string) => {
@@ -162,11 +177,13 @@ const LogWeightModal = ({ visible, onClose, onSave, isSaving }: {
           <View style={m.handle} />
           <View style={m.titleRow}>
             <View style={m.titleLeft}>
-              <Ionicons name="scale-outline" size={20} color={Colors.primary} />
+              <View style={m.titleIconChip}>
+                <Ionicons name="scale-outline" size={18} color={Colors.primary} />
+              </View>
               <Text style={m.title}>Log Weight</Text>
             </View>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close-outline" size={24} color={Colors.textMuted} />
+            <TouchableOpacity onPress={onClose} style={m.closeBtn}>
+              <Ionicons name="close-outline" size={20} color={Colors.textMuted} />
             </TouchableOpacity>
           </View>
 
@@ -331,7 +348,7 @@ export default function WeightTrackerScreen() {
   const chartEntries = filterByRange(entries, chartRange);
   const historyToShow = showAllHistory ? sorted : sorted.slice(0, 5);
 
-  const changeColor = (val: number) => val < 0 ? '#4CAF50' : val > 0 ? '#E05C5C' : Colors.textMuted;
+  const changeColor = (val: number) => val < 0 ? Colors.primary : val > 0 ? Colors.error : Colors.textMuted;
   const changeIcon  = (val: number): keyof typeof Ionicons.glyphMap =>
     val < 0 ? 'trending-down-outline' : val > 0 ? 'trending-up-outline' : 'remove-outline';
 
@@ -340,7 +357,7 @@ export default function WeightTrackerScreen() {
 
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-          <Ionicons name="chevron-back" size={28} color={Colors.primary} />
+          <Ionicons name="chevron-back" size={22} color={Colors.textDark} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Weight Tracker</Text>
         <TouchableOpacity style={styles.logBtn} onPress={() => setShowLogModal(true)} activeOpacity={0.85}>
@@ -366,40 +383,47 @@ export default function WeightTrackerScreen() {
           </View>
         ) : (
           <>
-            <View style={styles.heroCard}>
-              <View style={styles.heroLeft}>
-                <Text style={styles.heroLabel}>Current Weight</Text>
-                <View style={styles.heroWeightRow}>
-                  <Text style={styles.heroWeight}>{currentWeight}</Text>
-                  <Text style={styles.heroUnit}>kg</Text>
+            {/* ── Hero: today's weight, same dark card language as Home ── */}
+            <View style={[styles.heroCard, leafRadius(BorderRadius.xl)]}>
+              <View style={styles.heroBlob} pointerEvents="none" />
+              <View style={styles.heroTopRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.heroLabel}>Current Weight</Text>
+                  <View style={styles.heroWeightRow}>
+                    <Text style={styles.heroWeight}>{currentWeight}</Text>
+                    <Text style={styles.heroUnit}>kg</Text>
+                  </View>
+                  <View style={styles.heroChangeRow}>
+                    <Ionicons
+                      name={changeIcon(currentWeight! - prevWeight!)}
+                      size={13}
+                      color={currentWeight === prevWeight ? 'rgba(255,255,255,0.6)' : LIME}
+                    />
+                    <Text style={styles.heroChange}>
+                      {currentWeight === prevWeight
+                        ? 'No change'
+                        : `${Math.abs(currentWeight! - prevWeight!).toFixed(1)} kg from last entry`}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.heroChangeRow}>
-                  <Ionicons name={changeIcon(currentWeight! - prevWeight!)} size={14} color={changeColor(currentWeight! - prevWeight!)} />
-                  <Text style={[styles.heroChange, { color: changeColor(currentWeight! - prevWeight!) }]}>
-                    {currentWeight === prevWeight
-                      ? 'No change'
-                      : `${Math.abs(currentWeight! - prevWeight!).toFixed(1)} kg from last entry`}
-                  </Text>
-                </View>
-                <Text style={styles.heroDate}>Last logged: {formatFullDate(sorted[0]?.date ?? '')}</Text>
-              </View>
-              <View style={styles.heroRight}>
                 <View style={styles.heroIconBox}>
-                  <Ionicons name="scale-outline" size={36} color={Colors.primary} />
+                  <Ionicons name="scale-outline" size={28} color={Colors.textDark} />
                 </View>
               </View>
+              <Text style={styles.heroDate}>Last logged: {formatFullDate(sorted[0]?.date ?? '')}</Text>
             </View>
 
+            {/* ── Quick stats, same pastel-tile language as Home's tools ── */}
             <View style={styles.statsRow}>
               {[
-                { label: 'Start',  val: startWeight != null ? `${startWeight} kg` : '—', icon: 'flag-outline' as const, color: Colors.primary },
-                { label: 'Lost',   val: `${totalLost.toFixed(1)} kg`, icon: 'trending-down-outline' as const, color: '#4CAF50' },
-                { label: 'Target', val: targetWeight != null ? `${targetWeight} kg` : 'Not set', icon: 'trophy-outline' as const, color: '#FF9800' },
-                { label: 'To Go',  val: hasTarget ? `${remaining > 0 ? remaining.toFixed(1) : '0'} kg` : '—', icon: 'navigate-outline' as const, color: Colors.primary },
+                { label: 'Start',  val: startWeight != null ? `${startWeight} kg` : '—', icon: 'flag-outline' as const, tint: Tint.mint, accent: Colors.primary },
+                { label: 'Lost',   val: `${totalLost.toFixed(1)} kg`, icon: 'trending-down-outline' as const, tint: Tint.sky, accent: Accent.teal },
+                { label: 'Target', val: targetWeight != null ? `${targetWeight} kg` : 'Not set', icon: 'trophy-outline' as const, tint: Tint.peach, accent: Accent.gold },
+                { label: 'To Go',  val: hasTarget ? `${remaining > 0 ? remaining.toFixed(1) : '0'} kg` : '—', icon: 'navigate-outline' as const, tint: Tint.lilac, accent: Accent.plum },
               ].map((s, i) => (
-                <View key={i} style={styles.statCard}>
-                  <View style={[styles.statIconBox, { backgroundColor: s.color + '18' }]}>
-                    <Ionicons name={s.icon} size={16} color={s.color} />
+                <View key={i} style={[styles.statCard, leafRadius(BorderRadius.md), { backgroundColor: s.tint }]}>
+                  <View style={[styles.statIconBox, { backgroundColor: s.accent }]}>
+                    <Ionicons name={s.icon} size={14} color="#fff" />
                   </View>
                   <Text style={styles.statVal}>{s.val}</Text>
                   <Text style={styles.statLabel}>{s.label}</Text>
@@ -410,7 +434,7 @@ export default function WeightTrackerScreen() {
             {hasTarget ? (
               <>
                 <Text style={styles.sectionTitle}>Progress to Target</Text>
-                <View style={styles.progressCard}>
+                <View style={[styles.progressCard, leafRadius(BorderRadius.lg)]}>
                   <View style={styles.progressTopRow}>
                     <View style={styles.progressLabelCol}>
                       <View style={styles.progressLabelRow}>
@@ -418,7 +442,7 @@ export default function WeightTrackerScreen() {
                         <Text style={styles.progressLabelText}>Start: {startWeight} kg</Text>
                       </View>
                       <View style={styles.progressLabelRow}>
-                        <Ionicons name="trophy-outline" size={14} color="#FF9800" />
+                        <Ionicons name="trophy-outline" size={14} color={Accent.gold} />
                         <Text style={styles.progressLabelText}>Target: {targetWeight} kg</Text>
                       </View>
                     </View>
@@ -437,12 +461,12 @@ export default function WeightTrackerScreen() {
                         ? `${remaining.toFixed(1)} kg left to reach your goal`
                         : 'Goal reached! Set a new target.'}
                     </Text>
-                    {remaining <= 0 && <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />}
+                    {remaining <= 0 && <Ionicons name="checkmark-circle" size={16} color={Colors.primary} />}
                   </View>
                 </View>
               </>
             ) : (
-              <View style={styles.noTargetCard}>
+              <View style={[styles.noTargetCard, leafRadius(BorderRadius.lg)]}>
                 <Ionicons name="flag-outline" size={18} color={Colors.textMuted} />
                 <Text style={styles.noTargetText}>
                   Set a target weight in My Account to track progress here.
@@ -453,7 +477,7 @@ export default function WeightTrackerScreen() {
             {bmi != null && bmiCategory && (
               <>
                 <Text style={styles.sectionTitle}>BMI Indicator</Text>
-                <View style={styles.bmiCard}>
+                <View style={[styles.bmiCard, leafRadius(BorderRadius.lg)]}>
                   <View style={styles.bmiLeft}>
                     <View style={styles.bmiValueRow}>
                       <Text style={styles.bmiValue}>{bmi}</Text>
@@ -466,9 +490,9 @@ export default function WeightTrackerScreen() {
                   <View style={styles.bmiScale}>
                     {[
                       { label: '<18.5', cat: 'Under',  color: '#2196F3' },
-                      { label: '18.5–24.9', cat: 'Normal', color: '#4CAF50' },
-                      { label: '25–29.9', cat: 'Over', color: '#FF9800' },
-                      { label: '30+', cat: 'Obese',   color: '#E05C5C' },
+                      { label: '18.5–24.9', cat: 'Normal', color: Colors.primary },
+                      { label: '25–29.9', cat: 'Over', color: Accent.gold },
+                      { label: '30+', cat: 'Obese',   color: Colors.error },
                     ].map((b, i) => (
                       <View key={i} style={styles.bmiScaleItem}>
                         <View style={[styles.bmiScaleDot, {
@@ -487,49 +511,29 @@ export default function WeightTrackerScreen() {
 
             <Text style={styles.sectionTitle}>Weight Changes</Text>
             <View style={styles.changeRow}>
-              <View style={styles.changeCard}>
-                <View style={styles.changeIconRow}>
-                  <Ionicons name="calendar-outline" size={16} color={Colors.textMuted} />
-                  <Text style={styles.changeCardLabel}>This Week</Text>
+              {[
+                { label: 'This Week',  icon: 'calendar-outline' as const, val: weekChange, tint: Tint.mint },
+                { label: 'This Month', icon: 'calendar-clear-outline' as const, val: monthChange, tint: Tint.peach },
+                { label: 'Total',      icon: 'time-outline' as const, val: currentWeight! - startWeight!, tint: Tint.lilac },
+              ].map((c, i) => (
+                <View key={i} style={[styles.changeCard, leafRadius(BorderRadius.md), { backgroundColor: c.tint }]}>
+                  <View style={styles.changeIconRow}>
+                    <Ionicons name={c.icon} size={14} color={Colors.textMuted} />
+                    <Text style={styles.changeCardLabel}>{c.label}</Text>
+                  </View>
+                  <View style={styles.changeValRow}>
+                    <Ionicons name={changeIcon(c.val)} size={16} color={changeColor(c.val)} />
+                    <Text style={[styles.changeVal, { color: changeColor(c.val) }]}>
+                      {c.val === 0 ? '0.0' : Math.abs(c.val).toFixed(1)} kg
+                    </Text>
+                  </View>
+                  <Text style={styles.changeSub}>{c.val < 0 ? 'Lost' : c.val > 0 ? 'Gained' : 'No change'}</Text>
                 </View>
-                <View style={styles.changeValRow}>
-                  <Ionicons name={changeIcon(weekChange)} size={18} color={changeColor(weekChange)} />
-                  <Text style={[styles.changeVal, { color: changeColor(weekChange) }]}>
-                    {weekChange === 0 ? '0.0' : Math.abs(weekChange).toFixed(1)} kg
-                  </Text>
-                </View>
-                <Text style={styles.changeSub}>{weekChange < 0 ? 'Lost' : weekChange > 0 ? 'Gained' : 'No change'}</Text>
-              </View>
-              <View style={styles.changeCard}>
-                <View style={styles.changeIconRow}>
-                  <Ionicons name="calendar-clear-outline" size={16} color={Colors.textMuted} />
-                  <Text style={styles.changeCardLabel}>This Month</Text>
-                </View>
-                <View style={styles.changeValRow}>
-                  <Ionicons name={changeIcon(monthChange)} size={18} color={changeColor(monthChange)} />
-                  <Text style={[styles.changeVal, { color: changeColor(monthChange) }]}>
-                    {monthChange === 0 ? '0.0' : Math.abs(monthChange).toFixed(1)} kg
-                  </Text>
-                </View>
-                <Text style={styles.changeSub}>{monthChange < 0 ? 'Lost' : monthChange > 0 ? 'Gained' : 'No change'}</Text>
-              </View>
-              <View style={styles.changeCard}>
-                <View style={styles.changeIconRow}>
-                  <Ionicons name="time-outline" size={16} color={Colors.textMuted} />
-                  <Text style={styles.changeCardLabel}>Total</Text>
-                </View>
-                <View style={styles.changeValRow}>
-                  <Ionicons name={changeIcon(currentWeight! - startWeight!)} size={18} color={changeColor(currentWeight! - startWeight!)} />
-                  <Text style={[styles.changeVal, { color: changeColor(currentWeight! - startWeight!) }]}>
-                    {Math.abs(currentWeight! - startWeight!).toFixed(1)} kg
-                  </Text>
-                </View>
-                <Text style={styles.changeSub}>{currentWeight! < startWeight! ? 'Lost total' : 'Gained total'}</Text>
-              </View>
+              ))}
             </View>
 
             <Text style={styles.sectionTitle}>Weight History Chart</Text>
-            <View style={styles.chartCard}>
+            <View style={[styles.chartCard, leafRadius(BorderRadius.lg)]}>
               <View style={styles.chartRangeTabs}>
                 {(['1W','1M','3M','All'] as ChartRange[]).map(r => (
                   <TouchableOpacity
@@ -545,7 +549,7 @@ export default function WeightTrackerScreen() {
             </View>
 
             <Text style={styles.sectionTitle}>Log History</Text>
-            <View style={styles.historyCard}>
+            <View style={[styles.historyCard, leafRadius(BorderRadius.lg)]}>
               {historyToShow.map((entry, i) => {
                 const prev   = sorted[i + 1];
                 const change = prev ? entry.weight - prev.weight : 0;
@@ -593,7 +597,7 @@ export default function WeightTrackerScreen() {
 
             <Text style={styles.longPressHint}>Tip: long-press an entry to delete it.</Text>
 
-            <View style={styles.tipCard}>
+            <View style={[styles.tipCard, leafRadius(BorderRadius.lg)]}>
               <View style={styles.tipIconBox}>
                 <Ionicons name="bulb-outline" size={18} color={Colors.primary} />
               </View>
@@ -622,43 +626,56 @@ export default function WeightTrackerScreen() {
 const styles = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: Colors.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, backgroundColor: Colors.primaryMuted },
-  headerBtn:   { width: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.primary },
-  logBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
+    backgroundColor: Colors.background, borderBottomWidth: 1, borderBottomColor: Colors.border,
+  },
+  headerBtn:   {
+    width: 38, height: 38, borderRadius: 19, backgroundColor: Colors.white,
+    justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.border,
+  },
+  headerTitle: { fontSize: 17, fontWeight: '800', color: Colors.textDark, letterSpacing: -0.2 },
+  logBtn:      { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.md, paddingVertical: 9 },
   logBtnText:  { fontSize: Fonts.sizes.sm, fontWeight: '700', color: Colors.white },
+
   scroll:        { flex: 1 },
   scrollContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
-  sectionTitle:  { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.textDark, marginBottom: Spacing.sm, marginTop: Spacing.md },
+  sectionTitle:  { fontSize: 16, fontWeight: '800', color: Colors.textDark, marginBottom: Spacing.sm, marginTop: Spacing.md, letterSpacing: -0.2 },
 
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.lg * 3, gap: Spacing.sm },
   emptyTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.textDark },
   emptyText:  { fontSize: Fonts.sizes.sm, color: Colors.textMuted, textAlign: 'center', paddingHorizontal: Spacing.lg },
 
-  noTargetCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm },
+  noTargetCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.white, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm },
   noTargetText: { flex: 1, fontSize: Fonts.sizes.sm, color: Colors.textMuted },
 
   longPressHint: { fontSize: 11, color: Colors.textMuted, textAlign: 'center', marginTop: Spacing.sm },
 
-  heroCard:      { backgroundColor: Colors.primaryMuted, borderRadius: BorderRadius.lg, padding: Spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
-  heroLeft:      { flex: 1, gap: 4 },
-  heroLabel:     { fontSize: Fonts.sizes.sm, color: Colors.textMuted, fontWeight: '600' },
-  heroWeightRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
-  heroWeight:    { fontSize: 48, fontWeight: '900', color: Colors.primary, lineHeight: 52 },
-  heroUnit:      { fontSize: Fonts.sizes.lg, color: Colors.primary, fontWeight: '600', marginBottom: 8 },
-  heroChangeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  heroChange:    { fontSize: Fonts.sizes.sm, fontWeight: '600' },
-  heroDate:      { fontSize: 11, color: Colors.textMuted },
-  heroRight:     {},
-  heroIconBox:   { width: 72, height: 72, borderRadius: 20, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center' },
+  // Hero — same dark-card language as Home's calorie card
+  heroCard: {
+    backgroundColor: Colors.textDark, padding: Spacing.md, marginBottom: Spacing.sm, overflow: 'hidden',
+    shadowColor: Colors.textDark, shadowOpacity: 0.2, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6,
+  },
+  heroBlob:      { position: 'absolute', width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.04)', top: -60, right: -50 },
+  heroTopRow:    { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  heroLabel:     { fontSize: 12.5, color: 'rgba(255,255,255,0.65)', fontWeight: '600' },
+  heroWeightRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 5, marginTop: 4 },
+  heroWeight:    { fontSize: 42, fontWeight: '900', color: '#fff', lineHeight: 46 },
+  heroUnit:      { fontSize: 15, color: 'rgba(255,255,255,0.7)', fontWeight: '700', marginBottom: 7 },
+  heroChangeRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  heroChange:    { fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.78)' },
+  heroDate:      { fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: Spacing.sm },
+  heroIconBox:   { width: 56, height: 56, borderRadius: 18, backgroundColor: LIME, justifyContent: 'center', alignItems: 'center' },
 
   statsRow:    { flexDirection: 'row', gap: 8, marginBottom: Spacing.sm },
-  statCard:    { flex: 1, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.sm, alignItems: 'center', gap: 4, borderWidth: 1, borderColor: Colors.border },
-  statIconBox: { width: 30, height: 30, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  statCard:    { flex: 1, padding: Spacing.sm, alignItems: 'center', gap: 4 },
+  statIconBox: { width: 28, height: 28, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   statVal:     { fontSize: Fonts.sizes.sm, fontWeight: '800', color: Colors.textDark },
-  statLabel:   { fontSize: 10, color: Colors.textMuted },
+  statLabel:   { fontSize: 10, color: Colors.textMuted, fontWeight: '600' },
 
-  progressCard:    { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md },
+  progressCard:    { backgroundColor: Colors.white, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md },
   progressTopRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   progressLabelCol:{ gap: 4 },
   progressLabelRow:{ flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -672,7 +689,7 @@ const styles = StyleSheet.create({
   progressFooter:  { flexDirection: 'row', alignItems: 'center', gap: 6 },
   progressFooterText:{ fontSize: Fonts.sizes.sm, color: Colors.textMuted, flex: 1 },
 
-  bmiCard:          { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md },
+  bmiCard:          { backgroundColor: Colors.white, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md },
   bmiLeft:          { gap: 4 },
   bmiValueRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   bmiValue:         { fontSize: 36, fontWeight: '900', color: Colors.textDark },
@@ -685,24 +702,24 @@ const styles = StyleSheet.create({
   bmiScaleLabel:    { fontSize: 10, fontWeight: '600' },
 
   changeRow:      { flexDirection: 'row', gap: 8, marginBottom: Spacing.sm },
-  changeCard:     { flex: 1, backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.sm, borderWidth: 1, borderColor: Colors.border, gap: 4 },
+  changeCard:     { flex: 1, padding: Spacing.sm, gap: 4 },
   changeIconRow:  { flexDirection: 'row', alignItems: 'center', gap: 4 },
   changeCardLabel:{ fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
   changeValRow:   { flexDirection: 'row', alignItems: 'center', gap: 3 },
   changeVal:      { fontSize: Fonts.sizes.lg, fontWeight: '800' },
   changeSub:      { fontSize: 10, color: Colors.textMuted },
 
-  chartCard:       { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md },
+  chartCard:       { backgroundColor: Colors.white, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md },
   chartRangeTabs:  { flexDirection: 'row', gap: 8 },
   rangeTab:        { paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: BorderRadius.full, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.background },
   rangeTabActive:  { borderColor: Colors.primary, backgroundColor: Colors.primaryMuted },
   rangeTabText:    { fontSize: Fonts.sizes.sm, fontWeight: '600', color: Colors.textMuted },
   rangeTabTextActive:{ color: Colors.primary },
 
-  historyCard:      { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+  historyCard:      { backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
   historyRow:       { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, gap: Spacing.sm },
   historyRowBorder: { borderBottomWidth: 1, borderBottomColor: Colors.border },
-  historyIconBox:   { width: 36, height: 36, borderRadius: 10, backgroundColor: Colors.primaryMuted, justifyContent: 'center', alignItems: 'center' },
+  historyIconBox:   { width: 36, height: 36, borderRadius: 14, backgroundColor: Colors.primaryMuted, justifyContent: 'center', alignItems: 'center' },
   historyCenter:    { flex: 1, gap: 2 },
   historyDate:      { fontSize: Fonts.sizes.sm, fontWeight: '600', color: Colors.textDark },
   historyNoteRow:   { flexDirection: 'row', alignItems: 'center', gap: 3 },
@@ -714,8 +731,8 @@ const styles = StyleSheet.create({
   showMoreBtn:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, padding: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border },
   showMoreText:     { fontSize: Fonts.sizes.sm, fontWeight: '600', color: Colors.primary },
 
-  tipCard:    { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: Colors.primaryMuted, borderRadius: BorderRadius.lg, padding: Spacing.md, gap: Spacing.sm, marginTop: Spacing.sm, borderWidth: 1, borderColor: Colors.primary },
-  tipIconBox: { width: 34, height: 34, borderRadius: 10, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center' },
+  tipCard:    { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: Tint.mint, padding: Spacing.md, gap: Spacing.sm, marginTop: Spacing.sm },
+  tipIconBox: { width: 34, height: 34, borderRadius: 14, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center' },
   tipText:    { flex: 1, fontSize: Fonts.sizes.sm, color: Colors.textDark, lineHeight: 20 },
 });
 
@@ -732,11 +749,13 @@ const chart = StyleSheet.create({
 
 const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet:   { backgroundColor: Colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg + 16, paddingTop: Spacing.sm },
+  sheet:   { backgroundColor: Colors.white, borderTopLeftRadius: 28, borderTopRightRadius: 24, paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg + 16, paddingTop: Spacing.sm },
   handle:  { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: Spacing.md },
   titleRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.lg },
-  titleLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title:     { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.textDark },
+  titleLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  titleIconChip: { width: 34, height: 34, borderRadius: 14, backgroundColor: Colors.primaryMuted, justifyContent: 'center', alignItems: 'center' },
+  title:     { fontSize: Fonts.sizes.lg, fontWeight: '800', color: Colors.textDark },
+  closeBtn:  { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' },
   label:     { fontSize: Fonts.sizes.sm, fontWeight: '600', color: Colors.textMuted, marginBottom: 6 },
   weightInputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md },
   weightInput:    { flex: 1, borderWidth: 1.5, borderColor: Colors.primary, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, fontSize: 28, fontWeight: '800', color: Colors.primary, textAlign: 'center', backgroundColor: Colors.background },

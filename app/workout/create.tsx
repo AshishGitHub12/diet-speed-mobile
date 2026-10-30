@@ -11,6 +11,29 @@ import api from '@/src/services/api';
 
 const WORKOUTS_BASE = '/workouts/';
 
+// ─── Shared design system (matches Home, Weight Tracker, Meal Log, Diet,
+// Challenges, Profile, Workout…) ────────────────────────────────────────────
+
+const Accent = { gold: '#B9892E', plum: '#6E5A8C', teal: '#3E7CA6', berry: '#8B3A42' };
+const Tint   = { mint: '#E1EEDD', peach: '#F5E6D3', lilac: '#E7E2F0', sky: '#DCEAF2' };
+const LIME   = '#B9F24C';
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
+
+// Same cycling accent family used in WorkoutScreen for muscle groups, so
+// each exercise card here reads as its own "slot" in a consistent palette.
+const CARD_ACCENTS = [Colors.primary, Accent.gold, Accent.plum, Accent.teal, Accent.berry];
+const CARD_TINTS   = [Tint.mint, Tint.peach, Tint.lilac, Tint.sky, '#F3E3E5'];
+
+// Same difficulty → accent mapping used on WorkoutScreen.
+const getDifficultyColor = (d: string) =>
+  d === 'beginner' ? Colors.primary : d === 'intermediate' ? Accent.gold : Colors.error;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface LibraryExercise {
@@ -135,7 +158,7 @@ export default function CreateWorkoutScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-          <Text style={styles.headerBack}>‹</Text>
+          <Ionicons name="chevron-back" size={20} color={Colors.textDark} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Create Workout</Text>
         <View style={styles.headerBtn} />
@@ -146,7 +169,7 @@ export default function CreateWorkoutScreen() {
 
           <Text style={styles.label}>Workout Name</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, leafRadius(BorderRadius.lg)]}
             placeholder={isSingleExercise ? 'e.g. Chest Day' : 'e.g. My Push Day'}
             placeholderTextColor={Colors.textPlaceholder}
             value={name}
@@ -155,17 +178,21 @@ export default function CreateWorkoutScreen() {
 
           <Text style={styles.label}>Difficulty</Text>
           <View style={styles.diffRow}>
-            {DIFFICULTIES.map((d) => (
-              <TouchableOpacity
-                key={d}
-                style={[styles.diffPill, difficulty === d && styles.diffPillActive]}
-                onPress={() => setDifficulty(d)}
-              >
-                <Text style={[styles.diffPillText, difficulty === d && styles.diffPillTextActive]}>
-                  {d.charAt(0).toUpperCase() + d.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            {DIFFICULTIES.map((d) => {
+              const active = difficulty === d;
+              const color = getDifficultyColor(d);
+              return (
+                <TouchableOpacity
+                  key={d}
+                  style={[styles.diffPill, active && { backgroundColor: color, borderColor: color }]}
+                  onPress={() => setDifficulty(d)}
+                >
+                  <Text style={[styles.diffPillText, active && styles.diffPillTextActive]}>
+                    {d.charAt(0).toUpperCase() + d.slice(1)}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           <View style={styles.sectionHeaderRow}>
@@ -175,106 +202,112 @@ export default function CreateWorkoutScreen() {
             {isSingleExercise && <Text style={styles.hintText}>Just one exercise today — that's fine</Text>}
           </View>
 
-          {exercises.map((ex, idx) => (
-            <View key={ex.key} style={styles.exerciseCard}>
-              <View style={styles.exerciseCardTop}>
-                <Text style={styles.exerciseIndex}>#{idx + 1}</Text>
-                {exercises.length > 1 && (
-                  <TouchableOpacity onPress={() => removeExercise(ex.key)}>
-                    <Ionicons name="trash-outline" size={18} color="#E05C5C" />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <TouchableOpacity style={styles.exercisePicker} onPress={() => openSearch(ex.key)} activeOpacity={0.7}>
-                <Ionicons name="search-outline" size={16} color={Colors.textMuted} />
-                <Text style={[styles.exercisePickerText, !ex.name && styles.exercisePickerPlaceholder]}>
-                  {ex.name || 'Search or type an exercise name'}
-                </Text>
-              </TouchableOpacity>
-
-              {searchTarget === ex.key && (
-                <View style={styles.searchBox}>
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Type to search the library..."
-                    placeholderTextColor={Colors.textPlaceholder}
-                    value={query}
-                    onChangeText={(t) => runSearch(t)}
-                    autoFocus
-                  />
-                  {searching && <ActivityIndicator size="small" color={Colors.primary} style={{ marginVertical: 6 }} />}
-                  {results.map((r) => (
-                    <TouchableOpacity key={r.id} style={styles.searchResultRow} onPress={() => pickFromLibrary(ex.key, r)}>
-                      <Text style={styles.searchResultName}>{r.name}</Text>
-                      <Text style={styles.searchResultMuscle}>{r.muscle_group}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {query.trim().length >= 2 && (
-                    <TouchableOpacity style={styles.useNewRow} onPress={() => useTypedAsNew(ex.key)}>
-                      <Ionicons name="add-circle-outline" size={16} color={Colors.primary} />
-                      <Text style={styles.useNewText}>Use "{query.trim()}" as a new exercise</Text>
+          {exercises.map((ex, idx) => {
+            const accent = CARD_ACCENTS[idx % CARD_ACCENTS.length];
+            const tint = CARD_TINTS[idx % CARD_TINTS.length];
+            return (
+              <View key={ex.key} style={[styles.exerciseCard, leafRadius(BorderRadius.lg)]}>
+                <View style={styles.exerciseCardTop}>
+                  <View style={[styles.exerciseIndexChip, { backgroundColor: tint }]}>
+                    <Text style={[styles.exerciseIndex, { color: accent }]}>#{idx + 1}</Text>
+                  </View>
+                  {exercises.length > 1 && (
+                    <TouchableOpacity onPress={() => removeExercise(ex.key)}>
+                      <Ionicons name="trash-outline" size={18} color={Colors.error} />
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity style={styles.closeSearchBtn} onPress={() => setSearchTarget(null)}>
-                    <Text style={styles.closeSearchText}>Close</Text>
-                  </TouchableOpacity>
                 </View>
-              )}
 
-              {!ex.exercise_id && ex.name !== '' && (
-                <View style={styles.fieldRow}>
-                  <Text style={styles.fieldLabel}>Muscle Group</Text>
-                  <TextInput
-                    style={styles.smallInput}
-                    placeholder="e.g. Chest"
-                    placeholderTextColor={Colors.textPlaceholder}
-                    value={ex.muscle_group}
-                    onChangeText={(t) => updateExercise(ex.key, { muscle_group: t })}
-                  />
-                </View>
-              )}
+                <TouchableOpacity style={[styles.exercisePicker, leafRadius(BorderRadius.md)]} onPress={() => openSearch(ex.key)} activeOpacity={0.7}>
+                  <Ionicons name="search-outline" size={16} color={Colors.textMuted} />
+                  <Text style={[styles.exercisePickerText, !ex.name && styles.exercisePickerPlaceholder]}>
+                    {ex.name || 'Search or type an exercise name'}
+                  </Text>
+                </TouchableOpacity>
 
-              <View style={styles.targetGrid}>
-                <View style={styles.targetField}>
-                  <Text style={styles.fieldLabel}>Sets</Text>
-                  <TextInput
-                    style={styles.smallInput}
-                    keyboardType="number-pad"
-                    value={ex.target_sets}
-                    onChangeText={(t) => updateExercise(ex.key, { target_sets: t })}
-                  />
-                </View>
-                <View style={styles.targetField}>
-                  <Text style={styles.fieldLabel}>Reps</Text>
-                  <TextInput
-                    style={styles.smallInput}
-                    keyboardType="number-pad"
-                    value={ex.target_reps}
-                    onChangeText={(t) => updateExercise(ex.key, { target_reps: t })}
-                  />
-                </View>
-                <View style={styles.targetField}>
-                  <Text style={styles.fieldLabel}>Weight (kg)</Text>
-                  <TextInput
-                    style={styles.smallInput}
-                    keyboardType="decimal-pad"
-                    value={ex.target_weight_kg}
-                    onChangeText={(t) => updateExercise(ex.key, { target_weight_kg: t })}
-                  />
-                </View>
-                <View style={styles.targetField}>
-                  <Text style={styles.fieldLabel}>Rest (s)</Text>
-                  <TextInput
-                    style={styles.smallInput}
-                    keyboardType="number-pad"
-                    value={ex.rest_seconds}
-                    onChangeText={(t) => updateExercise(ex.key, { rest_seconds: t })}
-                  />
+                {searchTarget === ex.key && (
+                  <View style={[styles.searchBox, { borderColor: accent }]}>
+                    <TextInput
+                      style={styles.searchInput}
+                      placeholder="Type to search the library..."
+                      placeholderTextColor={Colors.textPlaceholder}
+                      value={query}
+                      onChangeText={(t) => runSearch(t)}
+                      autoFocus
+                    />
+                    {searching && <ActivityIndicator size="small" color={accent} style={{ marginVertical: 6 }} />}
+                    {results.map((r) => (
+                      <TouchableOpacity key={r.id} style={styles.searchResultRow} onPress={() => pickFromLibrary(ex.key, r)}>
+                        <Text style={styles.searchResultName}>{r.name}</Text>
+                        <Text style={styles.searchResultMuscle}>{r.muscle_group}</Text>
+                      </TouchableOpacity>
+                    ))}
+                    {query.trim().length >= 2 && (
+                      <TouchableOpacity style={styles.useNewRow} onPress={() => useTypedAsNew(ex.key)}>
+                        <Ionicons name="add-circle-outline" size={16} color={accent} />
+                        <Text style={[styles.useNewText, { color: accent }]}>Use "{query.trim()}" as a new exercise</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity style={styles.closeSearchBtn} onPress={() => setSearchTarget(null)}>
+                      <Text style={styles.closeSearchText}>Close</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {!ex.exercise_id && ex.name !== '' && (
+                  <View style={styles.fieldRow}>
+                    <Text style={styles.fieldLabel}>Muscle Group</Text>
+                    <TextInput
+                      style={styles.smallInput}
+                      placeholder="e.g. Chest"
+                      placeholderTextColor={Colors.textPlaceholder}
+                      value={ex.muscle_group}
+                      onChangeText={(t) => updateExercise(ex.key, { muscle_group: t })}
+                    />
+                  </View>
+                )}
+
+                <View style={styles.targetGrid}>
+                  <View style={styles.targetField}>
+                    <Text style={styles.fieldLabel}>Sets</Text>
+                    <TextInput
+                      style={styles.smallInput}
+                      keyboardType="number-pad"
+                      value={ex.target_sets}
+                      onChangeText={(t) => updateExercise(ex.key, { target_sets: t })}
+                    />
+                  </View>
+                  <View style={styles.targetField}>
+                    <Text style={styles.fieldLabel}>Reps</Text>
+                    <TextInput
+                      style={styles.smallInput}
+                      keyboardType="number-pad"
+                      value={ex.target_reps}
+                      onChangeText={(t) => updateExercise(ex.key, { target_reps: t })}
+                    />
+                  </View>
+                  <View style={styles.targetField}>
+                    <Text style={styles.fieldLabel}>Weight (kg)</Text>
+                    <TextInput
+                      style={styles.smallInput}
+                      keyboardType="decimal-pad"
+                      value={ex.target_weight_kg}
+                      onChangeText={(t) => updateExercise(ex.key, { target_weight_kg: t })}
+                    />
+                  </View>
+                  <View style={styles.targetField}>
+                    <Text style={styles.fieldLabel}>Rest (s)</Text>
+                    <TextInput
+                      style={styles.smallInput}
+                      keyboardType="number-pad"
+                      value={ex.rest_seconds}
+                      onChangeText={(t) => updateExercise(ex.key, { rest_seconds: t })}
+                    />
+                  </View>
                 </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
 
           <TouchableOpacity style={styles.addExerciseBtn} onPress={addExercise} activeOpacity={0.8}>
             <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
@@ -288,10 +321,10 @@ export default function CreateWorkoutScreen() {
             activeOpacity={0.85}
           >
             {saving ? (
-              <ActivityIndicator size="small" color={Colors.white} />
+              <ActivityIndicator size="small" color={Colors.textDark} />
             ) : (
               <>
-                <Ionicons name="checkmark-circle-outline" size={20} color={Colors.white} />
+                <Ionicons name="checkmark-circle" size={20} color={Colors.textDark} />
                 <Text style={styles.saveBtnText}>Save Workout</Text>
               </>
             )}
@@ -311,57 +344,61 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, backgroundColor: Colors.primaryMuted,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, backgroundColor: Colors.background,
   },
-  headerBtn: { width: 40, alignItems: 'center' },
-  headerBack: { fontSize: 30, color: Colors.primary, fontWeight: '300', lineHeight: 34 },
-  headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.primary },
+  headerBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    borderWidth: 1.5, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.white,
+  },
+  headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '800', color: Colors.textDark },
 
   scrollContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
-  label: { fontSize: Fonts.sizes.sm, fontWeight: '700', color: Colors.textDark, marginBottom: 6, marginTop: Spacing.sm },
+  label: { fontSize: Fonts.sizes.sm, fontWeight: '800', color: Colors.textDark, marginBottom: 6, marginTop: Spacing.sm },
   input: {
-    height: 46, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border,
+    height: 46, borderWidth: 1.5, borderColor: Colors.border,
     backgroundColor: Colors.white, paddingHorizontal: Spacing.sm, fontSize: Fonts.sizes.sm, color: Colors.textDark,
   },
   diffRow: { flexDirection: 'row', gap: 8 },
-  diffPill: { flex: 1, paddingVertical: 10, borderRadius: BorderRadius.full, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.white, alignItems: 'center' },
-  diffPillActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  diffPillText: { fontSize: Fonts.sizes.sm, fontWeight: '600', color: Colors.textMuted },
+  diffPill: { flex: 1, paddingVertical: 10, borderRadius: BorderRadius.full, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.white, alignItems: 'center' },
+  diffPillText: { fontSize: Fonts.sizes.sm, fontWeight: '700', color: Colors.textMuted },
   diffPillTextActive: { color: Colors.white },
 
   sectionHeaderRow: { marginTop: Spacing.md, marginBottom: Spacing.sm },
-  sectionTitle: { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.textDark },
+  sectionTitle: { fontSize: Fonts.sizes.md, fontWeight: '800', color: Colors.textDark },
   hintText: { fontSize: 12, color: Colors.textMuted, marginTop: 2 },
 
-  exerciseCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: Spacing.sm, gap: Spacing.sm },
+  exerciseCard: { backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, marginBottom: Spacing.sm, gap: Spacing.sm },
   exerciseCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  exerciseIndex: { fontSize: 12, fontWeight: '700', color: Colors.textMuted },
+  exerciseIndexChip: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: BorderRadius.full },
+  exerciseIndex: { fontSize: 12, fontWeight: '800' },
 
-  exercisePicker: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.sm, backgroundColor: Colors.background },
+  exercisePicker: { flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, borderWidth: 1.5, borderColor: Colors.border, paddingHorizontal: Spacing.sm, backgroundColor: Colors.background },
   exercisePickerText: { fontSize: Fonts.sizes.sm, color: Colors.textDark, flex: 1 },
   exercisePickerPlaceholder: { color: Colors.textPlaceholder },
 
-  searchBox: { borderWidth: 1, borderColor: Colors.primary, borderRadius: BorderRadius.md, padding: Spacing.sm, gap: 6 },
+  searchBox: { borderWidth: 1.5, borderRadius: BorderRadius.md, padding: Spacing.sm, gap: 6 },
   searchInput: { height: 40, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.sm, fontSize: Fonts.sizes.sm, color: Colors.textDark, backgroundColor: Colors.white },
   searchResultRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  searchResultName: { fontSize: Fonts.sizes.sm, color: Colors.textDark, fontWeight: '600' },
+  searchResultName: { fontSize: Fonts.sizes.sm, color: Colors.textDark, fontWeight: '700' },
   searchResultMuscle: { fontSize: 11, color: Colors.textMuted },
   useNewRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
-  useNewText: { fontSize: Fonts.sizes.sm, color: Colors.primary, fontWeight: '600' },
+  useNewText: { fontSize: Fonts.sizes.sm, fontWeight: '700' },
   closeSearchBtn: { alignSelf: 'flex-end', paddingVertical: 4 },
   closeSearchText: { fontSize: 12, color: Colors.textMuted },
 
   fieldRow: { gap: 4 },
-  fieldLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
+  fieldLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '700' },
   smallInput: { height: 38, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.sm, fontSize: Fonts.sizes.sm, color: Colors.textDark, backgroundColor: Colors.background },
 
   targetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   targetField: { flexBasis: '47%', gap: 4 },
 
   addExerciseBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: Spacing.sm, borderRadius: BorderRadius.full, borderWidth: 1.5, borderColor: Colors.primary, borderStyle: 'dashed', marginTop: Spacing.sm },
-  addExerciseText: { fontSize: Fonts.sizes.sm, fontWeight: '700', color: Colors.primary },
+  addExerciseText: { fontSize: Fonts.sizes.sm, fontWeight: '800', color: Colors.primary },
 
-  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: BorderRadius.full, height: 52, marginTop: Spacing.lg },
+  saveBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: LIME, borderRadius: BorderRadius.full, height: 52, marginTop: Spacing.lg },
   saveBtnDisabled: { opacity: 0.5 },
-  saveBtnText: { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.white },
+  saveBtnText: { fontSize: Fonts.sizes.md, fontWeight: '800', color: Colors.textDark },
 });

@@ -9,12 +9,39 @@ import {
   ScrollView,
   Platform,
   Image,
-  ImageBackground,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import InputField from "@/src/components/ui/InputField";
 import PrimaryButton from "@/src/components/ui/PrimaryButton";
 import api from "@/src/services/api";
+import { Colors, Spacing, Fonts, BorderRadius } from "@/src/constants/theme";
+
+// ─── Shared design tokens (same system as Home / Weight / Meal / Diet / Workout / Login) ──
+
+const Accent = {
+  gold: "#B9892E",
+  plum: "#6E5A8C",
+  teal: "#3E7CA6",
+  berry: "#8B3A42",
+};
+
+const Tint = {
+  mint: "#E1EEDD",
+  peach: "#F5E6D3",
+  lilac: "#E7E2F0",
+  sky: "#DCEAF2",
+};
+
+const LIME = "#B9F24C";
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
 
 function RegisterScreen() {
   const router = useRouter();
@@ -116,11 +143,20 @@ function RegisterScreen() {
   // ─── UI ──────────────────────────────────────────────────────────────────────
 
   return (
-    <ImageBackground
-      source={require("@/assets/images/bg-gradient.jpg")}
-      style={styles.background}
-      resizeMode="cover"
-    >
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      {/* Dark hero header — same pattern as Login / Home calorie card */}
+      <View style={styles.heroCard}>
+        <View style={styles.heroBlobA} />
+        <View style={styles.heroBlobB} />
+        {/* <View style={styles.badgePill}> */}
+          {/* <View style={styles.badgeDot} /> */}
+          {/* <Text style={styles.badgePillText}>Diet Speed</Text> */}
+        {/* </View> */}
+        <Image source={require("@/assets/images/logo.png")} style={styles.logo} />
+        <Text style={styles.heroTitle}>Create your account</Text>
+        <Text style={styles.heroSubtitle}>Start your fitness journey today</Text>
+      </View>
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -130,73 +166,77 @@ function RegisterScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.container}>
-            {/* Logo */}
-            <Image
-              source={require("@/assets/images/logo.png")}
-              style={styles.logo}
-            />
-
-            <Text style={styles.heading}>Create your account</Text>
+          <View style={[styles.formCard, leafRadius(BorderRadius.xl)]}>
+            <Text style={styles.formHeading}>Sign up to get started</Text>
 
             {/* Username */}
-            <InputField
-              label="Username"
-              placeholder="Enter your username"
-              value={username}
-              onChangeText={(t) => {
-                setUsername(t);
-                if (errors.username) setErrors((e) => ({ ...e, username: undefined }));
-              }}
-              autoCapitalize="none"
-              returnKeyType="next"
-            />
-            {!!errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
+            <View style={styles.fieldWrap}>
+              <InputField
+                label="Username"
+                placeholder="Enter your username"
+                value={username}
+                onChangeText={(t) => {
+                  setUsername(t);
+                  if (errors.username) setErrors((e) => ({ ...e, username: undefined }));
+                }}
+                autoCapitalize="none"
+                returnKeyType="next"
+              />
+              {!!errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
+            </View>
 
             {/* Email */}
-            <InputField
-              label="Email"
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={(t) => {
-                setEmail(t);
-                if (errors.email) setErrors((e) => ({ ...e, email: undefined }));
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="next"
-            />
-            {!!errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+            <View style={styles.fieldWrap}>
+              <InputField
+                label="Email"
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={(t) => {
+                  setEmail(t);
+                  if (errors.email) setErrors((e) => ({ ...e, email: undefined }));
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="next"
+              />
+              {!!errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+            </View>
 
             {/* Password */}
-            <InputField
-              label="Password"
-              placeholder="Min. 8 characters"
-              value={password}
-              onChangeText={(t) => {
-                setPassword(t);
-                if (errors.password) setErrors((e) => ({ ...e, password: undefined }));
-              }}
-              secureTextEntry
-              returnKeyType="next"
-            />
-            {!!errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+            <View style={styles.fieldWrap}>
+              <InputField
+                label="Password"
+                placeholder="Min. 8 characters"
+                value={password}
+                onChangeText={(t) => {
+                  setPassword(t);
+                  if (errors.password) setErrors((e) => ({ ...e, password: undefined }));
+                }}
+                secureTextEntry
+                returnKeyType="next"
+              />
+              {!!errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+            </View>
 
             {/* Confirm Password */}
-            <InputField
-              label="Confirm Password"
-              placeholder="Re-enter your password"
-              value={confirmPassword}
-              onChangeText={(t) => {
-                setConfirmPassword(t);
-                if (errors.confirmPassword) setErrors((e) => ({ ...e, confirmPassword: undefined }));
-              }}
-              secureTextEntry
-              returnKeyType="done"
-              onSubmitEditing={handleRegister}
-            />
-            {!!errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+            <View style={styles.fieldWrap}>
+              <InputField
+                label="Confirm Password"
+                placeholder="Re-enter your password"
+                value={confirmPassword}
+                onChangeText={(t) => {
+                  setConfirmPassword(t);
+                  if (errors.confirmPassword) setErrors((e) => ({ ...e, confirmPassword: undefined }));
+                }}
+                secureTextEntry
+                returnKeyType="done"
+                onSubmitEditing={handleRegister}
+              />
+              {!!errors.confirmPassword && (
+                <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+              )}
+            </View>
 
             {/* Register Button */}
             <PrimaryButton
@@ -209,73 +249,141 @@ function RegisterScreen() {
             {/* Navigate to Login */}
             <TouchableOpacity
               onPress={() => router.replace("/(auth)/login")}
-              style={styles.loginContainer}
+              style={styles.loginRow}
               disabled={isLoading}
             >
               <Text style={styles.loginText}>
-                Already have an account?{" "}
-                <Text style={styles.loginLink}>Login</Text>
+                Already have an account? <Text style={styles.loginLink}>Login</Text>
               </Text>
+              <Ionicons name="arrow-forward" size={14} color={Colors.primary} />
             </TouchableOpacity>
+          </View>
+
+          {/* Pastel trust row, same as Login */}
+          <View style={styles.trustRow}>
+            <View style={[styles.trustChip, { backgroundColor: Tint.mint }]}>
+              <Ionicons name="shield-checkmark" size={14} color={Colors.primary} />
+              <Text style={styles.trustChipText}>Secure</Text>
+            </View>
+            <View style={[styles.trustChip, { backgroundColor: Tint.lilac }]}>
+              <Ionicons name="sparkles" size={14} color={Accent.plum} />
+              <Text style={styles.trustChipText}>Personalized</Text>
+            </View>
+            <View style={[styles.trustChip, { backgroundColor: Tint.peach }]}>
+              <Ionicons name="trending-up" size={14} color={Accent.gold} />
+              <Text style={styles.trustChipText}>Track progress</Text>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ImageBackground>
+    </SafeAreaView>
   );
 }
 
 export default RegisterScreen;
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
+  safe: { flex: 1, backgroundColor: Colors.background },
+
+  heroCard: {
+    backgroundColor: Colors.textDark,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xl + 10,
+    paddingHorizontal: Spacing.lg,
+    overflow: "hidden",
+    alignItems: "center",
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
+  heroBlobA: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    top: -90,
+    right: -70,
+  },
+  heroBlobB: {
+    position: "absolute",
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    bottom: -60,
+    left: -40,
+  },
+  badgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: Spacing.md,
+  },
+  badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: LIME },
+  badgePillText: { fontSize: 11, fontWeight: "700", color: Colors.white, letterSpacing: 0.3 },
+  logo: { width: 150, height: 42, resizeMode: "contain", marginBottom: Spacing.md, tintColor: Colors.white },
+  heroTitle: { fontSize: 22, fontWeight: "800", color: Colors.white, letterSpacing: -0.4 },
+  heroSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.65)", marginTop: 4, fontWeight: "500" },
+
   scrollContent: {
     flexGrow: 1,
-    justifyContent: "center",
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xxl + 20,
   },
-  container: {
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 30,
-    width: "100%",
+
+  formCard: {
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    shadowColor: Colors.textDark,
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+    marginTop: -Spacing.xl,
   },
-  logo: {
-    width: 180,
-    height: 50,
-    alignSelf: "center",
-    marginBottom: 20,
-    resizeMode: "contain",
+  formHeading: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Colors.textDark,
+    marginBottom: Spacing.md,
+    letterSpacing: -0.2,
   },
-  heading: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#444",
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  fieldSpacing: {
-    marginBottom: 12,
-  },
-  buttonSpacing: {
-    marginTop: 8,
-  },
+  fieldWrap: { marginBottom: Spacing.sm },
   errorText: {
     fontSize: 12,
-    color: "#E53935",
-    marginTop: -6,
-    marginBottom: 6,
+    color: Colors.error,
+    marginTop: 4,
     marginLeft: 4,
+    fontWeight: "500",
   },
-  loginContainer: {
-    marginTop: 15,
+  loginRow: {
+    marginTop: Spacing.md,
+    flexDirection: "row",
+    justifyContent: "center",
     alignItems: "center",
+    gap: 6,
   },
-  loginText: {
-    color: "#444",
+  loginText: { color: Colors.textMuted ?? "#666", fontSize: 13, fontWeight: "500" },
+  loginLink: { color: Colors.primary, fontWeight: "800" },
+
+  trustRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+    justifyContent: "center",
   },
-  loginLink: {
-    color: "#2E7D32",
-    fontWeight: "600",
+  trustChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
   },
+  trustChipText: { fontSize: 11, fontWeight: "700", color: Colors.textDark },
 });

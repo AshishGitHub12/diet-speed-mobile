@@ -3,6 +3,13 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
 import DropdownModal from '@/src/components/ui/Dropdownmodal';
 
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
+
 const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -36,13 +43,22 @@ const SimpleDateSelector: React.FC<SimpleDateSelectorProps> = ({ date, onChange 
 
   return (
     <View style={styles.row}>
-      <TouchableOpacity style={styles.field} onPress={() => setShowDay(true)}>
+      <TouchableOpacity
+        style={[styles.field, leafRadius(BorderRadius.lg)]}
+        onPress={() => setShowDay(true)}
+      >
         <Text style={styles.value}>{day}</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={[styles.field, styles.fieldWide]} onPress={() => setShowMonth(true)}>
+      <TouchableOpacity
+        style={[styles.field, styles.fieldWide, leafRadius(BorderRadius.lg)]}
+        onPress={() => setShowMonth(true)}
+      >
         <Text style={styles.value}>{month}</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.field} onPress={() => setShowYear(true)}>
+      <TouchableOpacity
+        style={[styles.field, leafRadius(BorderRadius.lg)]}
+        onPress={() => setShowYear(true)}
+      >
         <Text style={styles.value}>{year}</Text>
       </TouchableOpacity>
 
@@ -79,7 +95,6 @@ const styles = StyleSheet.create({
   field: {
     flex: 1,
     height: 56,
-    borderRadius: BorderRadius.lg,
     borderWidth: 1.5,
     borderColor: Colors.inputBorder,
     backgroundColor: Colors.white,

@@ -11,6 +11,43 @@ import * as DocumentPicker from 'expo-document-picker';
 import api from '@/src/services/api';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
 
+// ─── Shared design tokens (same system as Home / Weight / Meal / Diet /
+// Workout / Login / Register / Onboarding / Tabs / Profile / AI Coach) ──────
+
+const Accent = {
+  gold: '#B9892E',
+  plum: '#6E5A8C',
+  teal: '#3E7CA6',
+  berry: '#8B3A42',
+};
+
+const Tint = {
+  mint: '#E1EEDD',
+  peach: '#F5E6D3',
+  lilac: '#E7E2F0',
+  sky: '#DCEAF2',
+};
+
+const LIME = '#B9F24C';
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
+
+// Each section gets its own accent/tint pair so the icon chips read as
+// grouped, the same way meal types / muscle groups do elsewhere.
+const SECTION_STYLE: Record<string, { accent: string; tint: string }> = {
+  personal:  { accent: Colors.primary, tint: Tint.mint },
+  metrics:   { accent: Accent.teal,    tint: Tint.sky },
+  dietary:   { accent: Accent.gold,    tint: Tint.peach },
+  health:    { accent: Accent.berry,   tint: '#F3E3E5' },
+  lifestyle: { accent: Accent.plum,    tint: Tint.lilac },
+  goals:     { accent: Colors.primary, tint: Tint.mint },
+};
+
 // ─── Types — matches the full ProfileSerializer response ──────────────────────
 
 interface Profile {
@@ -127,12 +164,13 @@ function capitalize(str: string) {
 
 // ─── Info Row ─────────────────────────────────────────────────────────────────
 
-const InfoRow = ({ icon, label, value, onPress }: {
+const InfoRow = ({ icon, label, value, onPress, accent, tint }: {
   icon: keyof typeof Ionicons.glyphMap; label: string; value: string; onPress: () => void;
+  accent: string; tint: string;
 }) => (
-  <TouchableOpacity style={styles.infoRow} onPress={onPress} activeOpacity={0.7}>
-    <View style={styles.iconBox}>
-      <Ionicons name={icon} size={18} color={Colors.primary} />
+  <TouchableOpacity style={[styles.infoRow, leafRadius(BorderRadius.lg)]} onPress={onPress} activeOpacity={0.7}>
+    <View style={[styles.iconBox, { backgroundColor: tint }]}>
+      <Ionicons name={icon} size={18} color={accent} />
     </View>
     <View style={styles.infoCenter}>
       <Text style={styles.infoLabel}>{label}</Text>
@@ -174,8 +212,8 @@ const EditModal = ({ visible, title, type, value, options = [], onClose, onSave 
           <View style={m.handle} />
           <View style={m.titleRow}>
             <Text style={m.title}>Edit {title}</Text>
-            <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close-outline" size={24} color={Colors.textMuted} />
+            <TouchableOpacity onPress={onClose} style={m.closeBtn}>
+              <Ionicons name="close" size={16} color={Colors.textDark} />
             </TouchableOpacity>
           </View>
 
@@ -363,7 +401,7 @@ export default function MyAccountScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-          <Ionicons name="chevron-back" size={28} color={Colors.primary} />
+          <Ionicons name="chevron-back" size={20} color={Colors.textDark} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My Account</Text>
         <View style={styles.headerBtn}>
@@ -373,7 +411,10 @@ export default function MyAccountScreen() {
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
-        <View style={styles.avatarSection}>
+        {/* ── Avatar Hero ── */}
+        <View style={[styles.avatarSection, leafRadius(BorderRadius.xl)]}>
+          <View style={styles.heroBlobA} />
+          <View style={styles.heroBlobB} />
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarText}>{getInitials(profile?.name ?? 'U')}</Text>
           </View>
@@ -383,23 +424,23 @@ export default function MyAccountScreen() {
 
         <Text style={styles.sectionTitle}>Personal Info</Text>
         <View style={styles.group}>
-          <InfoRow icon="person-outline"      label="Full Name"     value={profile?.name ?? ''}                 onPress={() => openEdit('name',  'Full Name',  'text')} />
-          <InfoRow icon="mail-outline"        label="Email"         value={profile?.email ?? ''}                onPress={() => openEdit('email', 'Email',     'text')} />
-          <InfoRow icon="call-outline"        label="Phone Number"  value={profile?.phone_number ?? ''}         onPress={() => openEdit('phone_number', 'Phone Number', 'text')} />
-          <InfoRow icon="calendar-outline"    label="Date of Birth" value={profile?.dob ?? ''}                  onPress={() => openEdit('dob',    'Date of Birth', 'date')} />
-          <InfoRow icon="male-female-outline" label="Gender"        value={capitalize(profile?.gender ?? '')}   onPress={() => openEdit('gender', 'Gender', 'select', GENDER_OPTIONS)} />
+          <InfoRow {...SECTION_STYLE.personal} icon="person-outline"      label="Full Name"     value={profile?.name ?? ''}                 onPress={() => openEdit('name',  'Full Name',  'text')} />
+          <InfoRow {...SECTION_STYLE.personal} icon="mail-outline"        label="Email"         value={profile?.email ?? ''}                onPress={() => openEdit('email', 'Email',     'text')} />
+          <InfoRow {...SECTION_STYLE.personal} icon="call-outline"        label="Phone Number"  value={profile?.phone_number ?? ''}         onPress={() => openEdit('phone_number', 'Phone Number', 'text')} />
+          <InfoRow {...SECTION_STYLE.personal} icon="calendar-outline"    label="Date of Birth" value={profile?.dob ?? ''}                  onPress={() => openEdit('dob',    'Date of Birth', 'date')} />
+          <InfoRow {...SECTION_STYLE.personal} icon="male-female-outline" label="Gender"        value={capitalize(profile?.gender ?? '')}   onPress={() => openEdit('gender', 'Gender', 'select', GENDER_OPTIONS)} />
         </View>
 
         <Text style={styles.sectionTitle}>Body Metrics</Text>
         <View style={styles.group}>
-          <InfoRow icon="resize-outline"         label="Height"              value={profile?.height ? `${profile.height} ${profile.height_unit}` : ''} onPress={() => openEdit('height',        'Height',         'number')} />
-          <InfoRow icon="swap-vertical-outline"  label="Height Unit"         value={profile?.height_unit?.toUpperCase() ?? ''}                         onPress={() => openEdit('height_unit',   'Height Unit',    'select', HEIGHT_UNITS)} />
-          <InfoRow icon="scale-outline"          label="Current Weight (kg)" value={profile?.weight ? String(profile.weight) : ''}                     onPress={() => openEdit('weight',        'Current Weight', 'number')} />
-          <InfoRow icon="flag-outline"           label="Target Weight (kg)"  value={profile?.target_weight ? String(profile.target_weight) : ''}       onPress={() => openEdit('target_weight', 'Target Weight',  'number')} />
-          <InfoRow icon="flame-outline"          label="Daily Calorie Goal"  value={profile?.calorie_goal ? `${profile.calorie_goal} kcal` : ''}       onPress={() => openEdit('calorie_goal', 'Daily Calorie Goal', 'number')} />
-          <View style={styles.bmiRow}>
-            <View style={styles.iconBox}>
-              <Ionicons name="analytics-outline" size={18} color={Colors.primary} />
+          <InfoRow {...SECTION_STYLE.metrics} icon="resize-outline"         label="Height"              value={profile?.height ? `${profile.height} ${profile.height_unit}` : ''} onPress={() => openEdit('height',        'Height',         'number')} />
+          <InfoRow {...SECTION_STYLE.metrics} icon="swap-vertical-outline"  label="Height Unit"         value={profile?.height_unit?.toUpperCase() ?? ''}                         onPress={() => openEdit('height_unit',   'Height Unit',    'select', HEIGHT_UNITS)} />
+          <InfoRow {...SECTION_STYLE.metrics} icon="scale-outline"          label="Current Weight (kg)" value={profile?.weight ? String(profile.weight) : ''}                     onPress={() => openEdit('weight',        'Current Weight', 'number')} />
+          <InfoRow {...SECTION_STYLE.metrics} icon="flag-outline"           label="Target Weight (kg)"  value={profile?.target_weight ? String(profile.target_weight) : ''}       onPress={() => openEdit('target_weight', 'Target Weight',  'number')} />
+          <InfoRow {...SECTION_STYLE.metrics} icon="flame-outline"          label="Daily Calorie Goal"  value={profile?.calorie_goal ? `${profile.calorie_goal} kcal` : ''}       onPress={() => openEdit('calorie_goal', 'Daily Calorie Goal', 'number')} />
+          <View style={[styles.bmiRow, leafRadius(BorderRadius.lg)]}>
+            <View style={[styles.iconBox, { backgroundColor: SECTION_STYLE.metrics.tint }]}>
+              <Ionicons name="analytics-outline" size={18} color={SECTION_STYLE.metrics.accent} />
             </View>
             <View style={styles.infoCenter}>
               <Text style={styles.infoLabel}>BMI (auto-calculated)</Text>
@@ -414,12 +455,14 @@ export default function MyAccountScreen() {
         <Text style={styles.sectionTitle}>Dietary</Text>
         <View style={styles.group}>
           <InfoRow
+            {...SECTION_STYLE.dietary}
             icon="restaurant-outline"
             label="Dietary Preference"
             value={profile?.dietary_preference ? prettyLabel(profile.dietary_preference) : ''}
             onPress={() => openEdit('dietary_preference', 'Dietary Preference', 'select', DIETARY_OPTIONS)}
           />
           <InfoRow
+            {...SECTION_STYLE.dietary}
             icon="warning-outline"
             label="Food Allergies"
             value={prettyList(profile?.food_allergies)}
@@ -430,20 +473,22 @@ export default function MyAccountScreen() {
         <Text style={styles.sectionTitle}>Health</Text>
         <View style={styles.group}>
           <InfoRow
+            {...SECTION_STYLE.health}
             icon="medkit-outline"
             label="Health Conditions"
             value={prettyList(profile?.health_conditions)}
             onPress={() => openEdit('health_conditions', 'Health Conditions', 'multi', HEALTH_CONDITION_OPTIONS)}
           />
           <InfoRow
+            {...SECTION_STYLE.health}
             icon="people-outline"
             label="Family Health History"
             value={prettyList(profile?.family_health_conditions)}
             onPress={() => openEdit('family_health_conditions', 'Family Health History', 'multi', HEALTH_CONDITION_OPTIONS)}
           />
-          <TouchableOpacity style={styles.infoRow} onPress={handleReportPick} activeOpacity={0.7}>
-            <View style={styles.iconBox}>
-              <Ionicons name="document-attach-outline" size={18} color={Colors.primary} />
+          <TouchableOpacity style={[styles.infoRow, leafRadius(BorderRadius.lg)]} onPress={handleReportPick} activeOpacity={0.7}>
+            <View style={[styles.iconBox, { backgroundColor: SECTION_STYLE.health.tint }]}>
+              <Ionicons name="document-attach-outline" size={18} color={SECTION_STYLE.health.accent} />
             </View>
             <View style={styles.infoCenter}>
               <Text style={styles.infoLabel}>Health Report</Text>
@@ -456,30 +501,35 @@ export default function MyAccountScreen() {
         <Text style={styles.sectionTitle}>Lifestyle</Text>
         <View style={styles.group}>
           <InfoRow
+            {...SECTION_STYLE.lifestyle}
             icon="walk-outline"
             label="Activity Level"
             value={profile?.activity_level ? prettyLabel(profile.activity_level) : ''}
             onPress={() => openEdit('activity_level', 'Activity Level', 'select', ACTIVITY_OPTIONS)}
           />
           <InfoRow
+            {...SECTION_STYLE.lifestyle}
             icon="barbell-outline"
             label="Exercises Regularly"
             value={profile?.exercises_regularly ? prettyLabel(profile.exercises_regularly) : ''}
             onPress={() => openEdit('exercises_regularly', 'Exercises Regularly', 'select', YES_NO_OPTIONS)}
           />
           <InfoRow
+            {...SECTION_STYLE.lifestyle}
             icon="moon-outline"
             label="Sleep"
             value={profile?.sleep_hours ? prettyLabel(profile.sleep_hours) : ''}
             onPress={() => openEdit('sleep_hours', 'Sleep', 'select', SLEEP_OPTIONS)}
           />
           <InfoRow
+            {...SECTION_STYLE.lifestyle}
             icon="flame-outline"
             label="Smoking"
             value={profile?.smokes ? prettyLabel(profile.smokes) : ''}
             onPress={() => openEdit('smokes', 'Smoking', 'select', SMOKING_OPTIONS)}
           />
           <InfoRow
+            {...SECTION_STYLE.lifestyle}
             icon="wine-outline"
             label="Alcohol"
             value={profile?.consumes_alcohol ? prettyLabel(profile.consumes_alcohol) : ''}
@@ -490,12 +540,14 @@ export default function MyAccountScreen() {
         <Text style={styles.sectionTitle}>Goals</Text>
         <View style={styles.group}>
           <InfoRow
+            {...SECTION_STYLE.goals}
             icon="trophy-outline"
             label="Goal"
             value={profile?.goal ? prettyLabel(profile.goal) : ''}
             onPress={() => openEdit('goal', 'Goal', 'select', GOAL_OPTIONS)}
           />
           <InfoRow
+            {...SECTION_STYLE.goals}
             icon="compass-outline"
             label="Looking For"
             value={profile?.looking_for ? prettyLabel(profile.looking_for) : ''}
@@ -520,43 +572,69 @@ export default function MyAccountScreen() {
 const styles = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: Colors.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, backgroundColor: Colors.primaryMuted },
-  headerBtn:   { width: 40, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.primary },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
+    backgroundColor: Colors.background,
+  },
+  headerBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    borderWidth: 1.5, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.white,
+  },
+  headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '800', color: Colors.textDark },
   scroll: { flex: 1 },
-  scrollContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
-  avatarSection: { alignItems: 'center', paddingVertical: Spacing.lg, marginBottom: Spacing.md, backgroundColor: Colors.primaryMuted, borderRadius: BorderRadius.lg },
-  avatarCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.sm },
-  avatarText: { fontSize: 26, fontWeight: '700', color: Colors.white },
-  avatarName: { fontSize: Fonts.sizes.xl, fontWeight: '700', color: Colors.primary, marginBottom: 4 },
-  avatarSub:  { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
-  sectionTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.textDark, marginBottom: Spacing.sm, marginTop: Spacing.md },
+  scrollContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.sm },
+
+  avatarSection: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.textDark,
+    overflow: 'hidden',
+  },
+  heroBlobA: {
+    position: 'absolute', width: 160, height: 160, borderRadius: 80,
+    backgroundColor: 'rgba(255,255,255,0.04)', top: -70, right: -50,
+  },
+  heroBlobB: {
+    position: 'absolute', width: 110, height: 110, borderRadius: 55,
+    backgroundColor: 'rgba(255,255,255,0.03)', bottom: -45, left: -30,
+  },
+  avatarCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: LIME, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.sm },
+  avatarText: { fontSize: 26, fontWeight: '800', color: Colors.textDark },
+  avatarName: { fontSize: Fonts.sizes.xl, fontWeight: '800', color: Colors.white, marginBottom: 4 },
+  avatarSub:  { fontSize: Fonts.sizes.sm, color: 'rgba(255,255,255,0.6)' },
+
+  sectionTitle: { fontSize: Fonts.sizes.lg, fontWeight: '800', color: Colors.textDark, marginBottom: Spacing.sm, marginTop: Spacing.md },
   group: { gap: 8, marginBottom: Spacing.sm },
-  infoRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm },
-  iconBox: { width: 34, height: 34, borderRadius: 10, backgroundColor: Colors.primaryMuted, justifyContent: 'center', alignItems: 'center' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm },
+  iconBox: { width: 34, height: 34, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   infoCenter: { flex: 1, gap: 2 },
   infoLabel:  { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
   infoValue:  { fontSize: Fonts.sizes.md, fontWeight: '600', color: Colors.textDark },
-  bmiRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm },
-  bmiBadge: { backgroundColor: Colors.primaryMuted, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.md, paddingVertical: 4 },
-  bmiVal: { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.primary },
+  bmiRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.white, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm },
+  bmiBadge: { backgroundColor: LIME, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.md, paddingVertical: 4 },
+  bmiVal: { fontSize: Fonts.sizes.md, fontWeight: '800', color: Colors.textDark },
 });
 
 const m = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet:   { backgroundColor: Colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg + 16, paddingTop: Spacing.sm },
+  sheet:   { backgroundColor: Colors.white, borderTopLeftRadius: 28, borderTopRightRadius: 24, paddingHorizontal: Spacing.md, paddingBottom: Spacing.lg + 16, paddingTop: Spacing.sm },
   handle:  { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginBottom: Spacing.md },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
-  title:    { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.textDark },
-  input:    { borderWidth: 1.5, borderColor: Colors.primary, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, fontSize: Fonts.sizes.md, color: Colors.textDark, marginBottom: Spacing.md, backgroundColor: Colors.background },
+  title:    { fontSize: Fonts.sizes.lg, fontWeight: '800', color: Colors.textDark },
+  closeBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.background, alignItems: 'center', justifyContent: 'center' },
+  input:    { borderWidth: 1.5, borderColor: Colors.primary, ...leafRadius(BorderRadius.lg), paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, fontSize: Fonts.sizes.md, color: Colors.textDark, marginBottom: Spacing.md, backgroundColor: Colors.background },
   optionsList:     { gap: 8, marginBottom: Spacing.md },
   optionRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.background },
-  optionRowActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryMuted },
+  optionRowActive: { borderColor: Colors.primary, backgroundColor: Tint.mint },
   optionText:      { fontSize: Fonts.sizes.md, color: Colors.textDark },
   optionTextActive:{ color: Colors.primary, fontWeight: '600' },
   actions:    { flexDirection: 'row', gap: 12 },
   cancelBtn:  { flex: 1, borderWidth: 1.5, borderColor: Colors.border, borderRadius: BorderRadius.full, height: 52, justifyContent: 'center', alignItems: 'center' },
   cancelText: { fontSize: Fonts.sizes.md, color: Colors.textMuted, fontWeight: '600' },
-  saveBtn:    { flex: 1, backgroundColor: Colors.primary, borderRadius: BorderRadius.full, height: 52, justifyContent: 'center', alignItems: 'center' },
-  saveText:   { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.white },
+  saveBtn:    { flex: 1, backgroundColor: LIME, borderRadius: BorderRadius.full, height: 52, justifyContent: 'center', alignItems: 'center' },
+  saveText:   { fontSize: Fonts.sizes.md, fontWeight: '800', color: Colors.textDark },
 });

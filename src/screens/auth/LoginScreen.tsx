@@ -5,20 +5,47 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
-  ImageBackground,
   ScrollView,
   Platform,
   KeyboardAvoidingView,
   Alert,
+  ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useAppDispatch } from "@/src/redux/hooks";
 import { setTokens, setOnboarded } from "@/src/redux/authSlice";
 import { setProfile } from "@/src/redux/userSlice";
 import { saveTokens } from "@/src/utils/secureStore";
 import api from "@/src/services/api";
 import InputField from "@/src/components/ui/InputField";
-import PrimaryButton from "@/src/components/ui/PrimaryButton";
+import { Colors, Spacing, Fonts, BorderRadius } from "@/src/constants/theme";
+
+// ─── Shared design tokens (same system as Home / Weight / Meal / Diet / Workout) ──
+
+const Accent = {
+  gold: "#B9892E",
+  plum: "#6E5A8C",
+  teal: "#3E7CA6",
+  berry: "#8B3A42",
+};
+
+const Tint = {
+  mint: "#E1EEDD",
+  peach: "#F5E6D3",
+  lilac: "#E7E2F0",
+  sky: "#DCEAF2",
+};
+
+const LIME = "#B9F24C";
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
 
 function LoginScreen() {
   const router = useRouter();
@@ -88,7 +115,7 @@ function LoginScreen() {
 
       if (status === 401 || status === 400) {
         setErrors({
-          identifier: " ",   // spacer to highlight both fields
+          identifier: " ", // spacer to highlight both fields
           password: data?.detail || data?.message || "Invalid username or password",
         });
       } else {
@@ -102,11 +129,7 @@ function LoginScreen() {
   // ─── UI ──────────────────────────────────────────────────────────────────────
 
   return (
-    <ImageBackground
-      source={require("@/assets/images/bg-gradient.jpg")}
-      style={styles.background}
-      resizeMode="cover"
-    >
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -116,114 +139,228 @@ function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.container}>
-            {/* Logo */}
-            <Image
-              source={require("@/assets/images/logo.png")}
-              style={styles.logo}
-            />
+          {/* Dark hero header — leaf-corner shape so it flows into the form card below */}
+          <View style={[styles.heroCard, { borderBottomLeftRadius: 42, borderBottomRightRadius: 20 }]}>
+            <View style={styles.heroBlobA} />
+            <View style={styles.heroBlobB} />
+            <View style={styles.badgePill}>
+              <View style={styles.badgeDot} />
+              <Text style={styles.badgePillText}>Diet Speed</Text>
+            </View>
+            <Image source={require("@/assets/images/logo.png")} style={styles.logo} />
+            <Text style={styles.heroTitle}>Welcome back</Text>
+            <Text style={styles.heroSubtitle}>Sign in to keep your streak going</Text>
+          </View>
 
-            <Text style={styles.heading}>Sign in to your account</Text>
+          <View style={[styles.formCard, leafRadius(BorderRadius.xl)]}>
+            <Text style={styles.formHeading}>Sign in to your account</Text>
 
             {/* Username / Email */}
-            <InputField
-              label="Username or Email"
-              placeholder="Enter your username or email"
-              value={identifier}
-              onChangeText={(t) => {
-                setIdentifier(t);
-                if (errors.identifier) setErrors((e) => ({ ...e, identifier: undefined }));
-              }}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              returnKeyType="next"
-            />
-            {!!errors.identifier?.trim() && (
-              <Text style={styles.errorText}>{errors.identifier}</Text>
-            )}
+            <View style={styles.fieldWrap}>
+              <InputField
+                label="Username or Email"
+                placeholder="Enter your username or email"
+                value={identifier}
+                onChangeText={(t) => {
+                  setIdentifier(t);
+                  if (errors.identifier) setErrors((e) => ({ ...e, identifier: undefined }));
+                }}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                returnKeyType="next"
+              />
+              {!!errors.identifier?.trim() && (
+                <Text style={styles.errorText}>{errors.identifier}</Text>
+              )}
+            </View>
 
             {/* Password */}
-            <InputField
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={(t) => {
-                setPassword(t);
-                if (errors.password) setErrors((e) => ({ ...e, password: undefined }));
-              }}
-              secureTextEntry
-              returnKeyType="done"
-              onSubmitEditing={handleLogin}
-            />
-            {!!errors.password && (
-              <Text style={styles.errorText}>{errors.password}</Text>
-            )}
+            <View style={styles.fieldWrap}>
+              <InputField
+                label="Password"
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={(t) => {
+                  setPassword(t);
+                  if (errors.password) setErrors((e) => ({ ...e, password: undefined }));
+                }}
+                secureTextEntry
+                returnKeyType="done"
+                onSubmitEditing={handleLogin}
+              />
+              {!!errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+            </View>
 
-            {/* Login Button */}
-            <PrimaryButton
-              title="Login"
+            {/* Login Button — lime accent, matches the rest of the app's primary actions */}
+            <TouchableOpacity
+              style={[styles.limeButton, isLoading && styles.limeButtonDisabled]}
               onPress={handleLogin}
-              loading={isLoading}
               disabled={isLoading}
-            />
+              activeOpacity={0.85}
+            >
+              {isLoading ? (
+                <ActivityIndicator color={Colors.textDark} />
+              ) : (
+                <>
+                  <Text style={styles.limeButtonText}>Login</Text>
+                  <Ionicons name="arrow-forward" size={18} color={Colors.textDark} />
+                </>
+              )}
+            </TouchableOpacity>
 
             {/* Register link */}
             <TouchableOpacity
               onPress={() => router.push("/(auth)/register")}
               disabled={isLoading}
+              style={styles.registerRow}
             >
               <Text style={styles.registerText}>
-                Don't have an account? Register
+                Don't have an account?{" "}
+                <Text style={styles.registerLink}>Register</Text>
               </Text>
+              <Ionicons name="arrow-forward" size={14} color={Colors.primary} />
             </TouchableOpacity>
+          </View>
+
+          {/* Little pastel trust row, echoes the tool cards elsewhere in the app */}
+          <View style={styles.trustRow}>
+            <View style={[styles.trustChip, { backgroundColor: Tint.mint }]}>
+              <Ionicons name="shield-checkmark" size={14} color={Colors.primary} />
+              <Text style={styles.trustChipText}>Secure</Text>
+            </View>
+            <View style={[styles.trustChip, { backgroundColor: Tint.sky }]}>
+              <Ionicons name="flash" size={14} color={Accent.teal} />
+              <Text style={styles.trustChipText}>Fast sync</Text>
+            </View>
+            <View style={[styles.trustChip, { backgroundColor: Tint.peach }]}>
+              <Ionicons name="trending-up" size={14} color={Accent.gold} />
+              <Text style={styles.trustChipText}>Track progress</Text>
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </ImageBackground>
+    </SafeAreaView>
   );
 }
 
 export default LoginScreen;
 
 const styles = StyleSheet.create({
-  background: {
-    flex: 1,
-  },
+  safe: { flex: 1, backgroundColor: Colors.background },
+
   scrollContent: {
     flexGrow: 1,
-    justifyContent: "center",
+    paddingBottom: Spacing.xxl,
   },
-  container: {
-    justifyContent: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 10,
-    width: "100%",
+
+  heroCard: {
+    backgroundColor: Colors.textDark,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    overflow: "hidden",
+    alignItems: "center",
   },
-  logo: {
-    width: 180,
-    height: 50,
-    alignSelf: "center",
-    marginBottom: 20,
-    resizeMode: "contain",
+  heroBlobA: {
+    position: "absolute",
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    top: -90,
+    right: -70,
   },
-  heading: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#444",
-    marginBottom: 20,
-    textAlign: "center",
+  heroBlobB: {
+    position: "absolute",
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: "rgba(185,242,76,0.07)",
+    bottom: -60,
+    left: -40,
   },
+  badgePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    marginBottom: Spacing.md,
+  },
+  badgeDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: LIME },
+  badgePillText: { fontSize: 11, fontWeight: "700", color: Colors.white, letterSpacing: 0.3 },
+  logo: { width: 130, height: 36, resizeMode: "contain", marginBottom: Spacing.sm, tintColor: Colors.white },
+  heroTitle: { fontSize: 21, fontWeight: "800", color: Colors.white, letterSpacing: -0.4 },
+  heroSubtitle: { fontSize: 13, color: "rgba(255,255,255,0.65)", marginTop: 4, fontWeight: "500" },
+
+  formCard: {
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  formHeading: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Colors.textDark,
+    marginBottom: Spacing.md,
+    letterSpacing: -0.2,
+  },
+  fieldWrap: { marginBottom: Spacing.sm },
   errorText: {
     fontSize: 12,
-    color: "#E53935",
-    marginTop: -6,
-    marginBottom: 6,
+    color: Colors.error,
+    marginTop: 4,
     marginLeft: 4,
-  },
-  registerText: {
-    marginTop: 20,
-    textAlign: "center",
-    color: "#2E7D32",
     fontWeight: "500",
   },
+
+  limeButton: {
+    height: 54,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: LIME,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: Spacing.sm,
+    shadowColor: LIME,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 2,
+  },
+  limeButtonDisabled: { opacity: 0.6, shadowOpacity: 0 },
+  limeButtonText: { fontSize: Fonts.sizes.md, fontWeight: "800", color: Colors.textDark },
+
+  registerRow: {
+    marginTop: Spacing.md,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+  },
+  registerText: { color: Colors.textMuted ?? "#666", fontSize: 13, fontWeight: "500" },
+  registerLink: { color: Colors.primary, fontWeight: "800" },
+
+  trustRow: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    justifyContent: "center",
+  },
+  trustChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  trustChipText: { fontSize: 11, fontWeight: "700", color: Colors.textDark },
 });

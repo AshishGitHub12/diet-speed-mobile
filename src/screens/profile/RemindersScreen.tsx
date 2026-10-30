@@ -1,140 +1,253 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
 
-const REMINDERS = [
-  {
-    id: '1', title: 'Breakfast Reminder', time: '8:00 AM',
-    icon: '🌅', enabled: true, category: 'Meals',
-  },
-  {
-    id: '2', title: 'Lunch Reminder', time: '1:00 PM',
-    icon: '☀️', enabled: true, category: 'Meals',
-  },
-  {
-    id: '3', title: 'Dinner Reminder', time: '8:00 PM',
-    icon: '🌙', enabled: false, category: 'Meals',
-  },
-  {
-    id: '4', title: 'Morning Workout', time: '6:30 AM',
-    icon: '🏃', enabled: true, category: 'Workout',
-  },
-  {
-    id: '5', title: 'Evening Walk', time: '6:00 PM',
-    icon: '🚶', enabled: false, category: 'Workout',
-  },
-  {
-    id: '6', title: 'Water Reminder', time: 'Every 2 hours',
-    icon: '💧', enabled: true, category: 'Health',
-  },
-  {
-    id: '7', title: 'Sleep Reminder', time: '10:30 PM',
-    icon: '😴', enabled: true, category: 'Health',
-  },
-  {
-    id: '8', title: 'Weight Log', time: '7:00 AM',
-    icon: '⚖️', enabled: false, category: 'Health',
-  },
+// ─── Shared design system (matches Home, Diet, Challenges, Notifications,
+// Recipes, Explore, Profile, MyAccount…) ────────────────────────────────────
+
+const Accent = { gold: '#B9892E', plum: '#6E5A8C', teal: '#3E7CA6', berry: '#8B3A42' };
+const Tint   = { mint: '#E1EEDD', peach: '#F5E6D3', lilac: '#E7E2F0', sky: '#DCEAF2' };
+const LIME   = '#B9F24C';
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
+
+type ReminderType = 'meal' | 'water' | 'workout' | 'weight';
+
+interface Reminder {
+  id: string;
+  type: ReminderType;
+  title: string;
+  subtitle: string;
+  time: string;
+  days: string; // e.g. "Every day" / "Mon, Wed, Fri"
+  enabled: boolean;
+}
+
+// NOTE: UI-only for now — local state, no API calls yet. Will wire to the
+// backend (GET/POST/PATCH/DELETE reminders) once the UI is approved.
+const INITIAL_REMINDERS: Reminder[] = [
+  { id: '1', type: 'meal', title: 'Breakfast', subtitle: 'Log your first meal', time: '8:00 AM', days: 'Every day', enabled: true },
+  { id: '2', type: 'water', title: 'Drink Water', subtitle: 'Stay hydrated', time: '11:00 AM', days: 'Every day', enabled: true },
+  { id: '3', type: 'meal', title: 'Lunch', subtitle: 'Don’t skip it', time: '1:30 PM', days: 'Every day', enabled: true },
+  { id: '4', type: 'workout', title: 'Workout', subtitle: 'Time to move', time: '6:00 PM', days: 'Mon, Wed, Fri', enabled: false },
+  { id: '5', type: 'meal', title: 'Dinner', subtitle: 'Last meal of the day', time: '8:30 PM', days: 'Every day', enabled: true },
+  { id: '6', type: 'weight', title: 'Weigh-In', subtitle: 'Track your progress', time: '7:00 AM', days: 'Every Sunday', enabled: false },
 ];
 
-const CATEGORIES = ['All', 'Meals', 'Workout', 'Health'];
+const TYPE_STYLE: Record<ReminderType, { accent: string; tint: string; icon: keyof typeof Ionicons.glyphMap }> = {
+  meal:    { accent: Accent.gold,  tint: Tint.peach, icon: 'restaurant-outline' },
+  water:   { accent: Accent.teal,  tint: Tint.sky,   icon: 'water-outline' },
+  workout: { accent: Accent.berry, tint: Tint.lilac, icon: 'barbell-outline' },
+  weight:  { accent: Accent.plum,  tint: Tint.lilac, icon: 'speedometer-outline' },
+};
+
+const TIME_OPTIONS = [
+  '6:00 AM', '6:30 AM', '7:00 AM', '7:30 AM', '8:00 AM', '8:30 AM', '9:00 AM',
+  '11:00 AM', '12:00 PM', '1:00 PM', '1:30 PM', '2:00 PM',
+  '5:00 PM', '6:00 PM', '6:30 PM', '7:00 PM', '8:00 PM', '8:30 PM', '9:00 PM',
+];
+
+const DAY_OPTIONS = ['Every day', 'Weekdays', 'Weekends', 'Mon, Wed, Fri', 'Every Sunday'];
+
+const TYPE_OPTIONS: { type: ReminderType; label: string }[] = [
+  { type: 'meal', label: 'Meal' },
+  { type: 'water', label: 'Water' },
+  { type: 'workout', label: 'Workout' },
+  { type: 'weight', label: 'Weigh-In' },
+];
+
+function AddReminderModal({
+  visible, onClose, onAdd,
+}: { visible: boolean; onClose: () => void; onAdd: (r: Omit<Reminder, 'id' | 'enabled'>) => void }) {
+  const [type, setType] = useState<ReminderType>('meal');
+  const [title, setTitle] = useState('');
+  const [time, setTime] = useState('8:00 AM');
+  const [days, setDays] = useState('Every day');
+
+  const reset = () => { setType('meal'); setTitle(''); setTime('8:00 AM'); setDays('Every day'); };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={m.overlay}>
+        <View style={[m.sheet, leafRadius(BorderRadius.xl)]}>
+          <View style={m.sheetHeader}>
+            <Text style={m.sheetTitle}>New Reminder</Text>
+            <TouchableOpacity onPress={() => { reset(); onClose(); }} style={m.closeBtn}>
+              <Ionicons name="close" size={18} color={Colors.textDark} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ maxHeight: 420 }}>
+            <Text style={m.label}>Type</Text>
+            <View style={m.typeRow}>
+              {TYPE_OPTIONS.map((opt) => {
+                const ts = TYPE_STYLE[opt.type];
+                const active = type === opt.type;
+                return (
+                  <TouchableOpacity
+                    key={opt.type}
+                    style={[m.typeChip, { backgroundColor: active ? ts.tint : Colors.white, borderColor: active ? ts.accent : Colors.border }]}
+                    onPress={() => setType(opt.type)}
+                  >
+                    <Ionicons name={ts.icon} size={16} color={active ? ts.accent : Colors.textMuted} />
+                    <Text style={[m.typeChipText, { color: active ? ts.accent : Colors.textMuted }]}>{opt.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={m.label}>Title</Text>
+            <View style={[m.inputBox, leafRadius(BorderRadius.md)]}>
+              <TouchableOpacity activeOpacity={1} style={{ flex: 1 }}>
+                <Text style={[m.inputText, !title && { color: Colors.textMuted }]} onPress={() => {}}>
+                  {title || 'e.g. Evening Walk'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={m.label}>Time</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.sm }}>
+              {TIME_OPTIONS.map((t) => {
+                const active = time === t;
+                const ts = TYPE_STYLE[type];
+                return (
+                  <TouchableOpacity
+                    key={t}
+                    style={[m.pill, { backgroundColor: active ? ts.accent : Colors.white, borderColor: active ? ts.accent : Colors.border }]}
+                    onPress={() => setTime(t)}
+                  >
+                    <Text style={[m.pillText, { color: active ? Colors.white : Colors.textDark }]}>{t}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <Text style={m.label}>Repeat</Text>
+            <View style={{ gap: 8, marginBottom: Spacing.md }}>
+              {DAY_OPTIONS.map((d) => {
+                const active = days === d;
+                const ts = TYPE_STYLE[type];
+                return (
+                  <TouchableOpacity
+                    key={d}
+                    style={[m.dayRow, { backgroundColor: active ? ts.tint : Colors.white, borderColor: active ? ts.accent : Colors.border }]}
+                    onPress={() => setDays(d)}
+                  >
+                    <Text style={[m.dayRowText, active && { color: ts.accent, fontWeight: '800' }]}>{d}</Text>
+                    {active && <Ionicons name="checkmark-circle" size={18} color={ts.accent} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+
+          <TouchableOpacity
+            style={[m.saveBtn, !title.trim() && m.saveBtnDisabled]}
+            disabled={!title.trim()}
+            onPress={() => {
+              onAdd({ type, title: title.trim(), subtitle: TYPE_OPTIONS.find((o) => o.type === type)?.label || '', time, days });
+              reset();
+              onClose();
+            }}
+          >
+            <Text style={m.saveBtnText}>Add Reminder</Text>
+            <Ionicons name="checkmark" size={18} color={Colors.textDark} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 export default function RemindersScreen() {
   const router = useRouter();
-  const [reminders, setReminders] = useState(REMINDERS);
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [saved, setSaved] = useState(false);
+  const [reminders, setReminders] = useState<Reminder[]>(INITIAL_REMINDERS);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const toggleReminder = (id: string) => {
-    setReminders(prev => prev.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r));
+    // UI-only toggle for now — will call api.patch(`/reminders/${id}/`, { enabled }) once backend is wired.
+    setReminders((prev) => prev.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)));
   };
 
-  const filtered = activeCategory === 'All'
-    ? reminders
-    : reminders.filter(r => r.category === activeCategory);
-
-  const enabledCount = reminders.filter(r => r.enabled).length;
-
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const addReminder = (r: Omit<Reminder, 'id' | 'enabled'>) => {
+    // UI-only add for now — will call api.post('/reminders/', r) once backend is wired.
+    setReminders((prev) => [...prev, { ...r, id: String(Date.now()), enabled: true }]);
   };
+
+  const activeCount = reminders.filter((r) => r.enabled).length;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-          <Text style={styles.headerBack}>‹</Text>
+          <Ionicons name="chevron-back" size={20} color={Colors.textDark} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Reminders</Text>
-        <View style={styles.headerBtn} />
+        <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.headerBtn}>
+          <Ionicons name="add" size={22} color={Colors.textDark} />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-        {/* Summary */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryIcon}>🔔</Text>
-          <View>
-            <Text style={styles.summaryValue}>{enabledCount} Active Reminders</Text>
-            <Text style={styles.summarySubtext}>Out of {reminders.length} total</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Dark hero summary card */}
+        <View style={[styles.hero, leafRadius(BorderRadius.xl)]}>
+          <View style={styles.heroBlobTop} />
+          <View style={styles.heroBlobBottom} />
+          <View style={styles.heroIconWrap}>
+            <Ionicons name="notifications" size={22} color={LIME} />
           </View>
+          <Text style={styles.heroValue}>{activeCount} active</Text>
+          <Text style={styles.heroSub}>of {reminders.length} reminders set</Text>
         </View>
 
-        {/* Category filter */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
-          <View style={styles.filterRow}>
-            {CATEGORIES.map(cat => (
-              <TouchableOpacity
-                key={cat}
-                style={[styles.filterChip, activeCategory === cat && styles.filterChipActive]}
-                onPress={() => setActiveCategory(cat)}
-              >
-                <Text style={[styles.filterText, activeCategory === cat && styles.filterTextActive]}>
-                  {cat}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
+        <Text style={styles.sectionLabel}>All Reminders</Text>
 
-        {/* Reminder list */}
-        <View style={styles.reminderList}>
-          {filtered.map((reminder, i) => (
-            <View key={reminder.id} style={[styles.reminderRow, i > 0 && styles.reminderBorder]}>
-              <View style={[styles.reminderIconWrapper, !reminder.enabled && styles.reminderIconDisabled]}>
-                <Text style={styles.reminderIcon}>{reminder.icon}</Text>
+        {reminders.map((r) => {
+          const ts = TYPE_STYLE[r.type];
+          return (
+            <View key={r.id} style={[styles.card, leafRadius(BorderRadius.lg), !r.enabled && styles.cardDisabled]}>
+              <View style={[styles.iconBox, { backgroundColor: ts.tint }]}>
+                <Ionicons name={ts.icon} size={18} color={ts.accent} />
               </View>
-              <View style={styles.reminderInfo}>
-                <Text style={[styles.reminderTitle, !reminder.enabled && styles.reminderTitleDisabled]}>
-                  {reminder.title}
-                </Text>
-                <Text style={styles.reminderTime}>{reminder.time}</Text>
+              <View style={styles.cardBody}>
+                <Text style={styles.cardTitle}>{r.title}</Text>
+                <Text style={styles.cardSubtitle}>{r.subtitle}</Text>
+                <View style={styles.cardMetaRow}>
+                  <Ionicons name="time-outline" size={12} color={Colors.textMuted} />
+                  <Text style={styles.cardMeta}>{r.time}</Text>
+                  <View style={styles.dot} />
+                  <Ionicons name="repeat-outline" size={12} color={Colors.textMuted} />
+                  <Text style={styles.cardMeta}>{r.days}</Text>
+                </View>
               </View>
               <Switch
-                value={reminder.enabled}
-                onValueChange={() => toggleReminder(reminder.id)}
-                trackColor={{ false: Colors.border, true: Colors.primaryMuted }}
-                thumbColor={reminder.enabled ? Colors.primary : '#f4f3f4'}
+                value={r.enabled}
+                onValueChange={() => toggleReminder(r.id)}
+                trackColor={{ false: Colors.border, true: LIME }}
+                thumbColor={Colors.white}
               />
             </View>
-          ))}
-        </View>
+          );
+        })}
 
-        {/* Save button */}
-        <TouchableOpacity
-          style={[styles.saveBtn, saved && styles.saveBtnSuccess]}
-          onPress={handleSave}
-        >
-          <Text style={styles.saveBtnText}>{saved ? '✓ Saved!' : 'Save Reminders'}</Text>
-        </TouchableOpacity>
+        {reminders.length === 0 && (
+          <Text style={styles.emptyText}>No reminders yet — tap + to add one.</Text>
+        )}
 
-        <View style={{ height: 120 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
+
+      <AddReminderModal visible={modalVisible} onClose={() => setModalVisible(false)} onAdd={addReminder} />
     </SafeAreaView>
   );
 }
@@ -143,60 +256,76 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
-    backgroundColor: Colors.primaryMuted,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, backgroundColor: Colors.background,
   },
-  headerBtn: { width: 40, alignItems: 'center' },
-  headerBack: { fontSize: 30, color: Colors.primary, fontWeight: '300', lineHeight: 34 },
-  headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.primary },
-  scrollContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
-
-  summaryCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: Colors.primary, borderRadius: BorderRadius.lg,
-    padding: Spacing.md, marginBottom: Spacing.md,
+  headerBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    borderWidth: 1.5, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.white,
   },
-  summaryIcon: { fontSize: 32 },
-  summaryValue: { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.white },
-  summarySubtext: { fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
+  headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '800', color: Colors.textDark },
+  scrollContent: { padding: Spacing.md, gap: Spacing.sm },
 
-  filterScroll: { marginBottom: Spacing.md },
-  filterRow: { flexDirection: 'row', gap: 8, paddingVertical: 2 },
-  filterChip: {
-    paddingHorizontal: 14, paddingVertical: 6,
-    borderRadius: BorderRadius.full, backgroundColor: Colors.white,
+  hero: {
+    backgroundColor: Colors.textDark, padding: Spacing.lg, marginBottom: Spacing.md,
+    overflow: 'hidden', position: 'relative',
+  },
+  heroBlobTop: {
+    position: 'absolute', top: -30, right: -30, width: 110, height: 110,
+    borderRadius: 55, backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  heroBlobBottom: {
+    position: 'absolute', bottom: -40, left: -20, width: 90, height: 90,
+    borderRadius: 45, backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  heroIconWrap: {
+    width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(185,242,76,0.15)',
+    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm,
+  },
+  heroValue: { color: Colors.white, fontSize: Fonts.sizes.xxl, fontWeight: '800' },
+  heroSub: { color: 'rgba(255,255,255,0.65)', fontSize: Fonts.sizes.sm, marginTop: 2, fontWeight: '500' },
+
+  sectionLabel: { fontSize: Fonts.sizes.sm, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, marginTop: 4 },
+
+  card: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
+    backgroundColor: Colors.white, padding: Spacing.sm + 2,
     borderWidth: 1, borderColor: Colors.border,
   },
-  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterText: { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
-  filterTextActive: { color: Colors.white, fontWeight: '600' },
+  cardDisabled: { opacity: 0.55 },
+  iconBox: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  cardBody: { flex: 1, gap: 2 },
+  cardTitle: { fontSize: Fonts.sizes.md, fontWeight: '800', color: Colors.textDark },
+  cardSubtitle: { fontSize: Fonts.sizes.sm, color: Colors.textMuted, fontWeight: '500' },
+  cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  cardMeta: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
+  dot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: Colors.textMuted, marginHorizontal: 2 },
 
-  reminderList: {
-    backgroundColor: Colors.white, borderRadius: BorderRadius.lg, overflow: 'hidden',
-    marginBottom: Spacing.lg,
-    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 }, elevation: 2,
-  },
-  reminderRow: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: Spacing.md, paddingVertical: 14, gap: 12,
-  },
-  reminderBorder: { borderTopWidth: 1, borderTopColor: Colors.border },
-  reminderIconWrapper: {
-    width: 44, height: 44, borderRadius: 10,
-    backgroundColor: Colors.primaryMuted, justifyContent: 'center', alignItems: 'center',
-  },
-  reminderIconDisabled: { backgroundColor: Colors.border, opacity: 0.6 },
-  reminderIcon: { fontSize: 22 },
-  reminderInfo: { flex: 1 },
-  reminderTitle: { fontSize: Fonts.sizes.md, fontWeight: '600', color: Colors.textDark },
-  reminderTitleDisabled: { color: Colors.textMuted },
-  reminderTime: { fontSize: 11, color: Colors.textMuted, marginTop: 2 },
+  emptyText: { textAlign: 'center', color: Colors.textMuted, marginTop: 40 },
+});
 
+const m = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  sheet: { backgroundColor: Colors.background, padding: Spacing.lg, maxHeight: '85%' },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
+  sheetTitle: { fontSize: Fonts.sizes.lg, fontWeight: '800', color: Colors.textDark },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.white, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: Fonts.sizes.sm, fontWeight: '800', color: Colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, marginTop: Spacing.sm },
+  typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: Spacing.sm },
+  typeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderRadius: BorderRadius.full, paddingHorizontal: 12, paddingVertical: 8 },
+  typeChipText: { fontSize: Fonts.sizes.sm, fontWeight: '700' },
+  inputBox: { backgroundColor: Colors.white, borderWidth: 1.5, borderColor: Colors.border, paddingHorizontal: 14, paddingVertical: 12, marginBottom: Spacing.sm },
+  inputText: { fontSize: Fonts.sizes.md, color: Colors.textDark, fontWeight: '600' },
+  pill: { borderWidth: 1.5, borderRadius: BorderRadius.full, paddingHorizontal: 14, paddingVertical: 8, marginRight: 8 },
+  pillText: { fontSize: Fonts.sizes.sm, fontWeight: '700' },
+  dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderRadius: BorderRadius.md, paddingHorizontal: 14, paddingVertical: 12 },
+  dayRowText: { fontSize: Fonts.sizes.sm, color: Colors.textDark, fontWeight: '600' },
   saveBtn: {
-    backgroundColor: Colors.primary, borderRadius: BorderRadius.full,
-    height: 56, justifyContent: 'center', alignItems: 'center',
+    height: 54, borderRadius: BorderRadius.xl, backgroundColor: LIME,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: Spacing.sm, shadowColor: LIME, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 2,
   },
-  saveBtnSuccess: { backgroundColor: '#4CAF50' },
-  saveBtnText: { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.white },
+  saveBtnDisabled: { backgroundColor: Colors.border, shadowOpacity: 0 },
+  saveBtnText: { fontSize: Fonts.sizes.md, fontWeight: '800', color: Colors.textDark },
 });

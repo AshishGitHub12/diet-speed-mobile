@@ -17,6 +17,37 @@ import { useAppSelector } from '@/src/redux/hooks';
 import { sendMessageToGemini, ChatMessage, UserContext } from '@/src/services/gemini';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
 
+// ─── Shared design tokens (same system as Home / Weight / Meal / Diet /
+// Workout / Login / Register / Onboarding / Tabs / Profile) ────────────────
+
+const Accent = {
+  gold: '#B9892E',
+  plum: '#6E5A8C',
+  teal: '#3E7CA6',
+  berry: '#8B3A42',
+};
+
+const Tint = {
+  mint: '#E1EEDD',
+  peach: '#F5E6D3',
+  lilac: '#E7E2F0',
+  sky: '#DCEAF2',
+};
+
+const LIME = '#B9F24C';
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
+
+// Quick-prompt chips cycle through the same pastel/accent pairs used
+// everywhere else (tool cards, meal types, muscle groups…).
+const PROMPT_TINTS   = [Tint.mint, Tint.peach, Tint.lilac, Tint.sky, Tint.mint, Tint.peach];
+const PROMPT_ACCENTS = [Colors.primary, Accent.gold, Accent.plum, Accent.teal, Colors.primary, Accent.gold];
+
 // ─── Quick Prompts ────────────────────────────────────────────────────────────
 
 const QUICK_PROMPTS: { label: string; icon: keyof typeof Ionicons.glyphMap; text: string }[] = [
@@ -40,9 +71,9 @@ const formatTime = (date: Date) =>
 const TypingIndicator = () => (
   <View style={styles.aiBubbleWrapper}>
     <View style={styles.aiAvatar}>
-      <Ionicons name="sparkles" size={14} color={Colors.white} />
+      <Ionicons name="sparkles" size={14} color={Colors.textDark} />
     </View>
-    <View style={[styles.aiBubble, styles.typingBubble]}>
+    <View style={[styles.aiBubble, leafRadius(BorderRadius.lg), styles.typingBubble]}>
       <View style={styles.dotsRow}>
         <TypingDot delay={0} />
         <TypingDot delay={200} />
@@ -68,7 +99,7 @@ const TypingDot = ({ delay }: { delay: number }) => {
 
 const UserBubble = ({ message }: { message: ChatMessage }) => (
   <View style={styles.userBubbleWrapper}>
-    <View style={styles.userBubble}>
+    <View style={[styles.userBubble, leafRadius(BorderRadius.lg)]}>
       <Text style={styles.userBubbleText}>{message.text}</Text>
     </View>
     <Text style={styles.bubbleTime}>{formatTime(message.timestamp)}</Text>
@@ -88,11 +119,11 @@ const AIBubble = ({
 }) => (
   <View style={styles.aiBubbleWrapper}>
     <View style={styles.aiAvatar}>
-      <Ionicons name="sparkles" size={14} color={Colors.white} />
+      <Ionicons name="sparkles" size={14} color={Colors.textDark} />
     </View>
     <View style={styles.aiContent}>
       <TouchableOpacity
-        style={[styles.aiBubble, isSaved && styles.aiBubbleSaved]}
+        style={[styles.aiBubble, leafRadius(BorderRadius.lg), isSaved && styles.aiBubbleSaved]}
         onLongPress={onLongPress}
         activeOpacity={0.85}
         delayLongPress={500}
@@ -250,20 +281,25 @@ export default function AIChatScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
 
-      {/* ── Header ── */}
+      {/* ── Dark Hero Header — same pattern as Home/Profile ── */}
       <View style={styles.header}>
+        <View style={styles.heroBlobA} />
         <View style={styles.headerLeft}>
           <View style={styles.headerAvatar}>
-            <Ionicons name="sparkles" size={18} color={Colors.white} />
+            <Ionicons name="sparkles" size={18} color={Colors.textDark} />
           </View>
           <View>
             <Text style={styles.headerTitle}>AI Coach</Text>
-            <Text style={styles.headerSub}>
-              {isTyping ? 'Typing...' : 'Online · Ask me anything'}
-            </Text>
+            <View style={styles.headerSubRow}>
+              <View style={[styles.onlineDot, !isTyping && { backgroundColor: LIME }]} />
+              <Text style={styles.headerSub}>
+                {isTyping ? 'Typing...' : 'Online · Ask me anything'}
+              </Text>
+            </View>
           </View>
         </View>
         <TouchableOpacity onPress={handleClearChat} style={styles.clearBtn} activeOpacity={0.7}>
+          <Ionicons name="refresh" size={14} color={Colors.white} />
           <Text style={styles.clearBtnText}>Clear</Text>
         </TouchableOpacity>
       </View>
@@ -307,12 +343,17 @@ export default function AIChatScreen() {
                 {QUICK_PROMPTS.map((qp, i) => (
                   <TouchableOpacity
                     key={i}
-                    style={styles.quickChip}
+                    style={[
+                      styles.quickChip,
+                      { backgroundColor: PROMPT_TINTS[i % PROMPT_TINTS.length] },
+                    ]}
                     onPress={() => handleSend(qp.text)}
-                    activeOpacity={0.7}
+                    activeOpacity={0.75}
                   >
-                    <Ionicons name={qp.icon} size={13} color={Colors.primary} />
-                    <Text style={styles.quickChipText}>{qp.label}</Text>
+                    <Ionicons name={qp.icon} size={13} color={PROMPT_ACCENTS[i % PROMPT_ACCENTS.length]} />
+                    <Text style={[styles.quickChipText, { color: PROMPT_ACCENTS[i % PROMPT_ACCENTS.length] }]}>
+                      {qp.label}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -325,7 +366,7 @@ export default function AIChatScreen() {
         {/* ── Input Bar ── */}
         <View style={styles.inputBar}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, leafRadius(BorderRadius.lg)]}
             value={inputText}
             onChangeText={setInputText}
             placeholder="Ask your AI Coach..."
@@ -346,9 +387,9 @@ export default function AIChatScreen() {
             disabled={!inputText.trim() || isTyping}
           >
             {isTyping ? (
-              <ActivityIndicator size="small" color={Colors.white} />
+              <ActivityIndicator size="small" color={Colors.textDark} />
             ) : (
-              <Ionicons name="arrow-up" size={20} color={Colors.white} />
+              <Ionicons name="arrow-up" size={20} color={Colors.textDark} />
             )}
           </TouchableOpacity>
         </View>
@@ -359,7 +400,7 @@ export default function AIChatScreen() {
   );
 }
 
-// ─── Styles — only saved-related styles added, nothing else changed ───────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
@@ -370,33 +411,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
-    backgroundColor: Colors.primaryMuted,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    paddingVertical: Spacing.sm + 4,
+    backgroundColor: Colors.textDark,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: 'hidden',
+  },
+  heroBlobA: {
+    position: 'absolute', width: 140, height: 140, borderRadius: 70,
+    backgroundColor: 'rgba(255,255,255,0.04)', top: -70, right: -40,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   headerAvatar: {
     width: 40, height: 40, borderRadius: 20,
-    backgroundColor: Colors.primary,
+    backgroundColor: LIME,
     justifyContent: 'center', alignItems: 'center',
   },
-  headerAvatarText: { fontSize: 13, fontWeight: '800', color: Colors.white },
-  headerTitle: { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.primary },
-  headerSub:   { fontSize: Fonts.sizes.sm, color: Colors.textMuted, marginTop: 1 },
+  headerTitle: { fontSize: Fonts.sizes.md, fontWeight: '800', color: Colors.white },
+  headerSubRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 2 },
+  onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.4)' },
+  headerSub:   { fontSize: Fonts.sizes.sm, color: 'rgba(255,255,255,0.6)' },
   clearBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.full, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: BorderRadius.full, borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
-  clearBtnText: { fontSize: Fonts.sizes.sm, color: Colors.textMuted, fontWeight: '600' },
+  clearBtnText: { fontSize: Fonts.sizes.sm, color: Colors.white, fontWeight: '600' },
 
   messagesList:    { flex: 1 },
   messagesContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md, gap: Spacing.sm },
 
   userBubbleWrapper: { alignItems: 'flex-end', marginBottom: 4 },
   userBubble: {
-    backgroundColor: Colors.primary,
-    borderRadius: 18, borderBottomRightRadius: 4,
+    backgroundColor: Colors.textDark,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
     maxWidth: '80%',
   },
@@ -405,24 +453,22 @@ const styles = StyleSheet.create({
   aiBubbleWrapper: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm, marginBottom: 4 },
   aiAvatar: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: LIME,
     justifyContent: 'center', alignItems: 'center',
     marginBottom: 16,
   },
-  aiAvatarText: { fontSize: 10, fontWeight: '800', color: Colors.white },
   aiContent:    { flex: 1, alignItems: 'flex-start' },
   aiBubble: {
     backgroundColor: Colors.white,
-    borderRadius: 18, borderBottomLeftRadius: 4,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
     maxWidth: '85%', borderWidth: 1, borderColor: Colors.border,
   },
 
-  // ── Saved state — bubble gets a green left border tint ──
+  // ── Saved state — bubble tints mint ──
   aiBubbleSaved: {
     borderColor: Colors.primary,
     borderWidth: 1.5,
-    backgroundColor: Colors.primaryMuted,
+    backgroundColor: Tint.mint,
   },
 
   // ── Saved tag inside bubble (bottom-right) ──
@@ -456,7 +502,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: Colors.primaryMuted,
+    backgroundColor: Tint.mint,
     borderRadius: BorderRadius.full,
     paddingHorizontal: 7,
     paddingVertical: 2,
@@ -477,11 +523,10 @@ const styles = StyleSheet.create({
   quickPromptsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   quickChip: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: Colors.white, borderRadius: BorderRadius.full,
+    borderRadius: BorderRadius.full,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
-    borderWidth: 1.5, borderColor: Colors.primary,
   },
-  quickChipText: { fontSize: Fonts.sizes.sm, color: Colors.primary, fontWeight: '600' },
+  quickChipText: { fontSize: Fonts.sizes.sm, fontWeight: '700' },
 
   inputBar: {
     flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm,
@@ -492,15 +537,14 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1, minHeight: 44, maxHeight: 100,
-    backgroundColor: Colors.white, borderRadius: 22,
+    backgroundColor: Colors.white,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
     fontSize: Fonts.sizes.md, color: Colors.textDark,
     borderWidth: 1.5, borderColor: Colors.border,
   },
   sendBtn: {
     width: 44, height: 44, borderRadius: 22,
-    backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center',
+    backgroundColor: LIME, justifyContent: 'center', alignItems: 'center',
   },
   sendBtnDisabled: { backgroundColor: Colors.border },
-  sendBtnIcon: { fontSize: 20, color: Colors.white, fontWeight: '700', lineHeight: 24 },
 });

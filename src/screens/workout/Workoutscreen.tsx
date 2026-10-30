@@ -11,6 +11,26 @@ import api from '@/src/services/api';
 
 const WORKOUTS_BASE = '/workouts/';
 
+// ─── Shared design system (matches Home, Weight Tracker, Meal Log & Diet) ──────
+
+const Accent = { gold: '#B9892E', plum: '#6E5A8C', teal: '#3E7CA6', berry: '#8B3A42' };
+const Tint   = { mint: '#E1EEDD', peach: '#F5E6D3', lilac: '#E7E2F0', sky: '#DCEAF2' };
+const LIME   = '#B9F24C';
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
+
+// Muscle groups cycle through the same accent family as meal types elsewhere,
+// so every group gets a consistent color across its tab and its exercises.
+const GROUP_ACCENTS = [Colors.primary, Accent.gold, Accent.plum, Accent.teal, Accent.berry];
+const GROUP_TINTS   = [Tint.mint, Tint.peach, Tint.lilac, Tint.sky, '#F3E3E5'];
+const getGroupAccent = (i: number) => GROUP_ACCENTS[i % GROUP_ACCENTS.length];
+const getGroupTint   = (i: number) => GROUP_TINTS[i % GROUP_TINTS.length];
+
 // ─── Types — match WorkoutTemplateSerializer / WorkoutSessionSerializer ────────
 
 interface LoggedSet {
@@ -44,8 +64,10 @@ interface WeekDay {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Beginner/intermediate/advanced mapped onto the app's own palette instead of
+// generic traffic-light hex, so difficulty badges match everything else.
 const getDifficultyColor = (d: string) =>
-  d === 'beginner' ? '#4CAF50' : d === 'intermediate' ? '#FF9800' : '#E05C5C';
+  d === 'beginner' ? Colors.primary : d === 'intermediate' ? Accent.gold : Colors.error;
 
 const formatElapsed = (s: number) =>
   `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -85,9 +107,10 @@ const RestTimerModal = ({ visible, seconds, onClose }: {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={timerStyles.overlay}>
-        <View style={timerStyles.card}>
+        <View style={[timerStyles.card, leafRadius(BorderRadius.xl)]}>
+          <View style={timerStyles.blob} pointerEvents="none" />
           <View style={timerStyles.iconRow}>
-            <Ionicons name="timer-outline" size={24} color={Colors.primary} />
+            <Ionicons name="timer-outline" size={20} color={LIME} />
             <Text style={timerStyles.title}>Rest Time</Text>
           </View>
           <Animated.View style={[timerStyles.ring, { transform: [{ scale: scaleAnim }] }]}>
@@ -96,7 +119,7 @@ const RestTimerModal = ({ visible, seconds, onClose }: {
           </Animated.View>
           <Text style={timerStyles.hint}>Next set coming up...</Text>
           <TouchableOpacity style={timerStyles.skipBtn} onPress={onClose} activeOpacity={0.85}>
-            <Ionicons name="play-forward-outline" size={16} color={Colors.textMuted} />
+            <Ionicons name="play-forward-outline" size={16} color="#fff" />
             <Text style={timerStyles.skipText}>Skip Rest</Text>
           </TouchableOpacity>
         </View>
@@ -114,10 +137,10 @@ const SummaryModal = ({ visible, session, onClose }: {
   const mins = Math.floor(session.duration_seconds / 60);
 
   const stats = [
-    { val: `${mins}`, label: 'Minutes', icon: 'timer-outline' as const },
-    { val: `${session.completed_sets_count}/${session.total_sets_target}`, label: 'Sets Done', icon: 'checkmark-circle-outline' as const },
-    { val: `${Math.round(session.total_volume_kg)}kg`, label: 'Volume', icon: 'barbell-outline' as const },
-    { val: `${session.calories_burned}`, label: 'Kcal', icon: 'flame-outline' as const },
+    { val: `${mins}`, label: 'Minutes', icon: 'timer-outline' as const, tint: Tint.mint, accent: Colors.primary },
+    { val: `${session.completed_sets_count}/${session.total_sets_target}`, label: 'Sets Done', icon: 'checkmark-circle-outline' as const, tint: Tint.sky, accent: Accent.teal },
+    { val: `${Math.round(session.total_volume_kg)}kg`, label: 'Volume', icon: 'barbell-outline' as const, tint: Tint.lilac, accent: Accent.plum },
+    { val: `${session.calories_burned}`, label: 'Kcal', icon: 'flame-outline' as const, tint: Tint.peach, accent: Accent.gold },
   ];
 
   return (
@@ -125,14 +148,14 @@ const SummaryModal = ({ visible, session, onClose }: {
       <View style={summaryStyles.overlay}>
         <View style={summaryStyles.sheet}>
           <View style={summaryStyles.trophyRow}>
-            <Ionicons name="trophy" size={56} color="#FFD700" />
+            <Ionicons name="trophy" size={52} color="#FFD700" />
           </View>
           <Text style={summaryStyles.title}>Workout Complete!</Text>
           <Text style={summaryStyles.sub}>Great job! Here's your summary</Text>
           <View style={summaryStyles.statsGrid}>
             {stats.map((s, i) => (
-              <View key={i} style={summaryStyles.statCard}>
-                <Ionicons name={s.icon} size={22} color={Colors.primary} />
+              <View key={i} style={[summaryStyles.statCard, leafRadius(BorderRadius.md), { backgroundColor: s.tint }]}>
+                <Ionicons name={s.icon} size={20} color={s.accent} />
                 <Text style={summaryStyles.statVal}>{s.val}</Text>
                 <Text style={summaryStyles.statLabel}>{s.label}</Text>
               </View>
@@ -150,19 +173,20 @@ const SummaryModal = ({ visible, session, onClose }: {
 
 // ─── Set Row (editable reps/weight before confirming) ──────────────────────────
 
-const SetRow = ({ index, target, logged, disabled, onConfirm }: {
+const SetRow = ({ index, target, logged, disabled, onConfirm, accent }: {
   index: number;
   target: { reps: number; weight_kg: number };
   logged: LoggedSet | undefined;
   disabled: boolean;
   onConfirm: (reps: number, weight: number) => void;
+  accent: string;
 }) => {
   const [reps, setReps] = useState(String(logged?.reps ?? target.reps));
   const [weight, setWeight] = useState(String(logged?.weight_kg ?? target.weight_kg));
   const isDone = !!logged;
 
   return (
-    <View style={[styles.setRow, isDone && styles.setRowDone]}>
+    <View style={[styles.setRow, isDone && { backgroundColor: accent + '18' }]}>
       <Text style={[styles.setCell, { flex: 0.5 }]}>{index + 1}</Text>
       <TextInput
         style={[styles.setInput, isDone && styles.setInputDone]}
@@ -181,7 +205,7 @@ const SetRow = ({ index, target, logged, disabled, onConfirm }: {
         selectTextOnFocus
       />
       <TouchableOpacity
-        style={[styles.setDoneBtn, isDone && styles.setDoneBtnActive, disabled && !isDone && styles.setDoneBtnDisabled]}
+        style={[styles.setDoneBtn, { borderColor: accent }, isDone && { backgroundColor: accent }, disabled && !isDone && styles.setDoneBtnDisabled]}
         onPress={() => {
           const repsNum = parseInt(reps, 10);
           const weightNum = parseFloat(weight) || 0;
@@ -191,8 +215,8 @@ const SetRow = ({ index, target, logged, disabled, onConfirm }: {
         activeOpacity={0.7}
         disabled={isDone || disabled}
       >
-        <Ionicons name={isDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={isDone ? Colors.white : Colors.primary} />
-        <Text style={[styles.setDoneBtnText, isDone && styles.setDoneBtnTextActive]}>{isDone ? 'Done' : 'Log'}</Text>
+        <Ionicons name={isDone ? 'checkmark-circle' : 'ellipse-outline'} size={14} color={isDone ? Colors.white : accent} />
+        <Text style={[styles.setDoneBtnText, { color: accent }, isDone && styles.setDoneBtnTextActive]}>{isDone ? 'Done' : 'Log'}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -216,7 +240,7 @@ const WorkoutPicker = ({ templates, onPick, onCreate, onDelete, starting }: {
       {templates.map((t) => (
         <TouchableOpacity
           key={t.id}
-          style={styles.pickerCard}
+          style={[styles.pickerCard, leafRadius(BorderRadius.lg)]}
           onPress={() => onPick(t)}
           activeOpacity={0.85}
           disabled={starting}
@@ -245,7 +269,7 @@ const WorkoutPicker = ({ templates, onPick, onCreate, onDelete, starting }: {
                   onPress={(e) => { e.stopPropagation(); onDelete(t); }}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="trash-outline" size={16} color="#E05C5C" />
+                  <Ionicons name="trash-outline" size={16} color={Colors.error} />
                 </TouchableOpacity>
               )}
             </View>
@@ -260,14 +284,14 @@ const WorkoutPicker = ({ templates, onPick, onCreate, onDelete, starting }: {
             </View>
             <View style={styles.workoutStat}>
               <View style={styles.statIconRow}>
-                <Ionicons name="flame-outline" size={16} color="#FF9800" />
+                <Ionicons name="flame-outline" size={16} color={Accent.gold} />
                 <Text style={styles.workoutStatVal}>{t.calories_burn}</Text>
               </View>
               <Text style={styles.workoutStatLabel}>kcal</Text>
             </View>
             <View style={styles.workoutStat}>
               <View style={styles.statIconRow}>
-                <Ionicons name="barbell-outline" size={16} color={Colors.primary} />
+                <Ionicons name="barbell-outline" size={16} color={Accent.teal} />
                 <Text style={styles.workoutStatVal}>{t.total_sets}</Text>
               </View>
               <Text style={styles.workoutStatLabel}>total sets</Text>
@@ -447,7 +471,9 @@ export default function WorkoutScreen() {
   }
 
   const activeTemplate = session?.template ?? null;
-  const activeGroup = activeTemplate?.muscle_groups.find((g) => g.id === selectedGroup) ?? null;
+  const activeGroupIndex = activeTemplate?.muscle_groups.findIndex((g) => g.id === selectedGroup) ?? -1;
+  const activeGroup = activeGroupIndex >= 0 ? activeTemplate!.muscle_groups[activeGroupIndex] : null;
+  const activeGroupAccent = activeGroupIndex >= 0 ? getGroupAccent(activeGroupIndex) : Colors.primary;
   const completedSets = session?.completed_sets_count ?? 0;
   const totalSets = session?.total_sets_target ?? 0;
   const progress = totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
@@ -486,13 +512,14 @@ export default function WorkoutScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => fetchAll(true)} tintColor={Colors.primary} />}
       >
 
-        {/* Weekly Strip */}
-        <View style={styles.weeklyCard}>
+        {/* Weekly Strip — same dark hero language as the other screens */}
+        <View style={[styles.weeklyCard, leafRadius(BorderRadius.xl)]}>
+          <View style={styles.weeklyBlob} pointerEvents="none" />
           <View style={styles.weeklyTop}>
             <Text style={styles.weeklyTitle}>This Week</Text>
             {streak > 0 && (
               <View style={styles.streakBadge}>
-                <Ionicons name="flame-outline" size={14} color="#FF9800" />
+                <Ionicons name="flame" size={13} color={Colors.textDark} />
                 <Text style={styles.streakText}>{streak} day streak</Text>
               </View>
             )}
@@ -503,9 +530,9 @@ export default function WorkoutScreen() {
                 <Text style={styles.weeklyDayLabel}>{d.day}</Text>
                 <View style={[styles.weeklyDot, d.is_today && styles.weeklyDotToday, d.done && styles.weeklyDotDone]}>
                   {d.done
-                    ? <Ionicons name="checkmark-outline" size={14} color={Colors.white} />
+                    ? <Ionicons name="checkmark-outline" size={14} color={Colors.textDark} />
                     : d.is_today
-                    ? <Ionicons name="ellipse" size={8} color={Colors.primary} />
+                    ? <Ionicons name="ellipse" size={8} color={LIME} />
                     : null}
                 </View>
                 <Text style={styles.weeklyDate}>{d.day_number}</Text>
@@ -526,7 +553,7 @@ export default function WorkoutScreen() {
           <>
             {/* Today's Workout Card */}
             <Text style={styles.sectionTitle}>Today's Workout</Text>
-            <View style={styles.workoutCard}>
+            <View style={[styles.workoutCard, leafRadius(BorderRadius.lg)]}>
               <View style={styles.workoutCardTop}>
                 <View style={styles.workoutCardLeft}>
                   <Text style={styles.workoutName}>{activeTemplate!.name}</Text>
@@ -549,14 +576,14 @@ export default function WorkoutScreen() {
                 </View>
                 <View style={styles.workoutStat}>
                   <View style={styles.statIconRow}>
-                    <Ionicons name="flame-outline" size={18} color="#FF9800" />
+                    <Ionicons name="flame-outline" size={18} color={Accent.gold} />
                     <Text style={styles.workoutStatVal}>{activeTemplate!.calories_burn}</Text>
                   </View>
                   <Text style={styles.workoutStatLabel}>kcal</Text>
                 </View>
                 <View style={styles.workoutStat}>
                   <View style={styles.statIconRow}>
-                    <Ionicons name="barbell-outline" size={18} color={Colors.primary} />
+                    <Ionicons name="barbell-outline" size={18} color={Accent.teal} />
                     <Text style={styles.workoutStatVal}>{totalSets}</Text>
                   </View>
                   <Text style={styles.workoutStatLabel}>total sets</Text>
@@ -580,18 +607,19 @@ export default function WorkoutScreen() {
             {/* Muscle Group Tabs */}
             <Text style={styles.sectionTitle}>Exercises by Muscle Group</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.groupTabsScroll} contentContainerStyle={styles.groupTabsContent}>
-              {activeTemplate!.muscle_groups.map((g) => {
+              {activeTemplate!.muscle_groups.map((g, i) => {
                 const groupDone = g.exercises.every((e) => (e.logged_sets?.length ?? 0) >= e.target_sets);
                 const isActive = selectedGroup === g.id;
+                const accent = getGroupAccent(i);
                 return (
                   <TouchableOpacity
                     key={g.id}
-                    style={[styles.groupTab, isActive && styles.groupTabActive]}
+                    style={[styles.groupTab, isActive && { borderColor: accent, backgroundColor: accent + '18' }]}
                     onPress={() => setSelectedGroup(g.id)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[styles.groupTabText, isActive && styles.groupTabTextActive]}>{g.label}</Text>
-                    {groupDone && <Ionicons name="checkmark-circle" size={14} color={Colors.primary} />}
+                    <Text style={[styles.groupTabText, isActive && { color: accent, fontWeight: '800' }]}>{g.label}</Text>
+                    {groupDone && <Ionicons name="checkmark-circle" size={14} color={accent} />}
                   </TouchableOpacity>
                 );
               })}
@@ -606,10 +634,13 @@ export default function WorkoutScreen() {
                   const allDone = doneSets >= exercise.target_sets;
 
                   return (
-                    <View key={exercise.id} style={[styles.exerciseCard, allDone && styles.exerciseCardDone]}>
+                    <View
+                      key={exercise.id}
+                      style={[styles.exerciseCard, leafRadius(BorderRadius.lg), allDone && { backgroundColor: getGroupTint(activeGroupIndex) }]}
+                    >
                       <TouchableOpacity style={styles.exerciseHeader} onPress={() => setExpandedExercise(isExpanded ? null : exercise.id)} activeOpacity={0.7}>
-                        <View style={styles.exerciseIconBox}>
-                          <Ionicons name={exercise.icon} size={20} color={Colors.primary} />
+                        <View style={[styles.exerciseIconBox, { backgroundColor: activeGroupAccent }]}>
+                          <Ionicons name={exercise.icon} size={18} color="#fff" />
                         </View>
                         <View style={styles.exerciseHeaderCenter}>
                           <Text style={styles.exerciseName}>{exercise.name}</Text>
@@ -617,8 +648,8 @@ export default function WorkoutScreen() {
                         </View>
                         <View style={styles.exerciseHeaderRight}>
                           <View style={styles.setsCountRow}>
-                            <Ionicons name="layers-outline" size={12} color={Colors.primary} />
-                            <Text style={styles.exerciseSetsText}>{doneSets}/{exercise.target_sets}</Text>
+                            {allDone && <Ionicons name="checkmark-circle" size={13} color={activeGroupAccent} />}
+                            <Text style={[styles.exerciseSetsText, { color: activeGroupAccent }]}>{doneSets}/{exercise.target_sets}</Text>
                           </View>
                           <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.textMuted} />
                         </View>
@@ -626,8 +657,8 @@ export default function WorkoutScreen() {
 
                       {isExpanded && (
                         <View style={styles.exerciseBody}>
-                          <View style={styles.instructionBox}>
-                            <Ionicons name="information-circle-outline" size={16} color={Colors.primary} />
+                          <View style={[styles.instructionBox, { backgroundColor: getGroupTint(activeGroupIndex) }]}>
+                            <Ionicons name="information-circle-outline" size={16} color={activeGroupAccent} />
                             <Text style={styles.instructionText}>{exercise.instructions}</Text>
                           </View>
 
@@ -648,6 +679,7 @@ export default function WorkoutScreen() {
                                   target={{ reps: exercise.target_reps, weight_kg: exercise.target_weight_kg }}
                                   logged={logged}
                                   disabled={false}
+                                  accent={activeGroupAccent}
                                   onConfirm={(reps, weight) => logSet(exercise, idx + 1, reps, weight, exercise.rest_seconds)}
                                 />
                               );
@@ -682,36 +714,45 @@ export default function WorkoutScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   loader: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, backgroundColor: Colors.primaryMuted },
-  headerTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.primary },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
+    backgroundColor: Colors.background, borderBottomWidth: 1, borderBottomColor: Colors.border,
+  },
+  headerTitle: { fontSize: 17, fontWeight: '800', color: Colors.textDark, letterSpacing: -0.2 },
   timerRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  headerTimer: { fontSize: Fonts.sizes.sm, color: Colors.primary, fontWeight: '600' },
+  headerTimer: { fontSize: Fonts.sizes.sm, color: Colors.primary, fontWeight: '700' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  exitBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
-  finishBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#E05C5C', borderRadius: BorderRadius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  exitBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.white, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: Colors.border },
+  finishBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.error, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   finishBtnText: { fontSize: Fonts.sizes.sm, fontWeight: '700', color: Colors.white },
   scroll: { flex: 1 },
   scrollContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
-  sectionTitle: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.textDark, marginBottom: Spacing.sm, marginTop: Spacing.md },
+  sectionTitle: { fontSize: 16, fontWeight: '800', color: Colors.textDark, marginBottom: Spacing.sm, marginTop: Spacing.md, letterSpacing: -0.2 },
 
-  weeklyCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm },
+  // Weekly hero — dark card, consistent with Home/Diet/Meal/Weight
+  weeklyCard: {
+    backgroundColor: Colors.textDark, padding: Spacing.md, gap: Spacing.sm, overflow: 'hidden',
+    shadowColor: Colors.textDark, shadowOpacity: 0.2, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 6,
+  },
+  weeklyBlob: { position: 'absolute', width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(255,255,255,0.04)', top: -60, right: -50 },
   weeklyTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  weeklyTitle: { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.textDark },
-  streakBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#FFF3E0', borderRadius: BorderRadius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
-  streakText: { fontSize: Fonts.sizes.sm, fontWeight: '600', color: '#FF9800' },
+  weeklyTitle: { fontSize: 15, fontWeight: '800', color: '#fff' },
+  streakBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: LIME, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
+  streakText: { fontSize: 11.5, fontWeight: '800', color: Colors.textDark },
   weeklyStrip: { flexDirection: 'row', justifyContent: 'space-between' },
   weeklyDayCol: { alignItems: 'center', gap: 4 },
-  weeklyDayLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
-  weeklyDate: { fontSize: 10, color: Colors.textMuted },
-  weeklyDot: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.background, borderWidth: 1.5, borderColor: Colors.border, justifyContent: 'center', alignItems: 'center' },
-  weeklyDotDone: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  weeklyDotToday: { borderColor: Colors.primary, borderWidth: 2 },
+  weeklyDayLabel: { fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: '600' },
+  weeklyDate: { fontSize: 10, color: 'rgba(255,255,255,0.5)' },
+  weeklyDot: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.14)', justifyContent: 'center', alignItems: 'center' },
+  weeklyDotDone: { backgroundColor: LIME, borderColor: LIME },
+  weeklyDotToday: { borderColor: LIME, borderWidth: 2 },
 
   pickerHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   createBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: BorderRadius.full, borderWidth: 1, borderColor: Colors.primary, backgroundColor: Colors.primaryMuted },
   createBtnText: { fontSize: 12, fontWeight: '700', color: Colors.primary },
   pickerList: { gap: 12 },
-  pickerCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm },
+  pickerCard: { backgroundColor: Colors.white, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm },
   pickerCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   pickerCardLeft: { flex: 1 },
   pickerCardTopRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -722,23 +763,23 @@ const styles = StyleSheet.create({
   pickerStartRow: { flexDirection: 'row', alignItems: 'center', gap: 6, justifyContent: 'center', backgroundColor: Colors.primaryMuted, borderRadius: BorderRadius.full, paddingVertical: Spacing.sm },
   pickerStartText: { fontSize: Fonts.sizes.sm, fontWeight: '700', color: Colors.primary },
 
-  workoutCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md },
+  workoutCard: { backgroundColor: Colors.white, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md },
   workoutCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   workoutCardLeft: { flex: 1 },
   workoutName: { fontSize: Fonts.sizes.xl, fontWeight: '800', color: Colors.textDark },
-  workoutType: { fontSize: Fonts.sizes.sm, color: Colors.textMuted, marginTop: 2 },
+  workoutType: { fontSize: Fonts.sizes.sm, color: Colors.textMuted, marginTop: 2, fontWeight: '600' },
   diffBadge: { borderRadius: BorderRadius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
   diffText: { fontSize: Fonts.sizes.sm, fontWeight: '700' },
 
   workoutStats: { flexDirection: 'row', justifyContent: 'space-around' },
   workoutStat: { alignItems: 'center', gap: 4 },
   statIconRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  workoutStatVal: { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.textDark },
-  workoutStatLabel: { fontSize: 11, color: Colors.textMuted },
+  workoutStatVal: { fontSize: Fonts.sizes.md, fontWeight: '800', color: Colors.textDark },
+  workoutStatLabel: { fontSize: 11, color: Colors.textMuted, fontWeight: '600' },
 
   progressSection: { gap: 6 },
   progressRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  progressLabel: { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
+  progressLabel: { fontSize: Fonts.sizes.sm, color: Colors.textMuted, fontWeight: '600' },
   progressValRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   progressVal: { fontSize: Fonts.sizes.sm, fontWeight: '700', color: Colors.primary },
   progressTrack: { height: 8, backgroundColor: Colors.background, borderRadius: 4, overflow: 'hidden' },
@@ -747,41 +788,36 @@ const styles = StyleSheet.create({
   groupTabsScroll: { marginBottom: Spacing.sm },
   groupTabsContent: { gap: 8, paddingVertical: 4 },
   groupTab: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: BorderRadius.full, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.white },
-  groupTabActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryMuted },
   groupTabText: { fontSize: Fonts.sizes.sm, fontWeight: '600', color: Colors.textMuted },
-  groupTabTextActive: { color: Colors.primary },
 
   exerciseList: { gap: 10 },
-  exerciseCard: { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
-  exerciseCardDone: { borderColor: Colors.primary, opacity: 0.9 },
+  exerciseCard: { backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
   exerciseHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.md, gap: Spacing.sm },
-  exerciseIconBox: { width: 40, height: 40, borderRadius: 12, backgroundColor: Colors.primaryMuted, justifyContent: 'center', alignItems: 'center' },
+  exerciseIconBox: { width: 40, height: 40, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
   exerciseHeaderCenter: { flex: 1 },
-  exerciseName: { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.textDark },
-  exerciseMuscle: { fontSize: Fonts.sizes.sm, color: Colors.textMuted, marginTop: 2 },
+  exerciseName: { fontSize: Fonts.sizes.md, fontWeight: '800', color: Colors.textDark },
+  exerciseMuscle: { fontSize: Fonts.sizes.sm, color: Colors.textMuted, marginTop: 2, fontWeight: '600' },
   exerciseHeaderRight: { alignItems: 'flex-end', gap: 4 },
   setsCountRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  exerciseSetsText: { fontSize: Fonts.sizes.sm, fontWeight: '700', color: Colors.primary },
+  exerciseSetsText: { fontSize: Fonts.sizes.sm, fontWeight: '800' },
 
   exerciseBody: { borderTopWidth: 1, borderTopColor: Colors.border, padding: Spacing.md, gap: Spacing.sm, backgroundColor: Colors.background },
-  instructionBox: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, backgroundColor: Colors.primaryMuted, borderRadius: BorderRadius.lg, padding: Spacing.sm },
+  instructionBox: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, borderRadius: BorderRadius.lg, padding: Spacing.sm },
   instructionText: { flex: 1, fontSize: Fonts.sizes.sm, color: Colors.textDark, lineHeight: 18 },
 
   setsTable: { gap: 6 },
   setsTableHeader: { flexDirection: 'row', paddingHorizontal: Spacing.sm, paddingBottom: 4, borderBottomWidth: 1, borderBottomColor: Colors.border },
   setsHeaderCell: { flex: 1, fontSize: 11, fontWeight: '700', color: Colors.textMuted, textAlign: 'center' },
   setRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.lg, backgroundColor: Colors.white },
-  setRowDone: { backgroundColor: Colors.primaryMuted },
   setCell: { flex: 1, fontSize: Fonts.sizes.sm, color: Colors.textDark, textAlign: 'center', fontWeight: '600' },
   setInput: {
     flex: 1, height: 32, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: Colors.border,
     backgroundColor: Colors.white, textAlign: 'center', fontSize: Fonts.sizes.sm, color: Colors.textDark,
   },
-  setInputDone: { backgroundColor: Colors.primaryMuted, borderColor: 'transparent', color: Colors.primary, fontWeight: '700' },
-  setDoneBtn: { flex: 1.2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, height: 32, borderRadius: BorderRadius.full, borderWidth: 1.5, borderColor: Colors.primary },
-  setDoneBtnActive: { backgroundColor: Colors.primary },
+  setInputDone: { backgroundColor: Colors.white, borderColor: 'transparent', color: Colors.textDark, fontWeight: '700' },
+  setDoneBtn: { flex: 1.2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, height: 32, borderRadius: BorderRadius.full, borderWidth: 1.5 },
   setDoneBtnDisabled: { borderColor: Colors.border },
-  setDoneBtnText: { fontSize: 11, fontWeight: '700', color: Colors.primary },
+  setDoneBtnText: { fontSize: 11, fontWeight: '700' },
   setDoneBtnTextActive: { color: Colors.white },
   restHintRow: { flexDirection: 'row', alignItems: 'center', gap: 4, justifyContent: 'center' },
   restHint: { fontSize: 11, color: Colors.textMuted },
@@ -789,27 +825,28 @@ const styles = StyleSheet.create({
 
 const timerStyles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
-  card: { backgroundColor: Colors.white, borderRadius: 24, padding: Spacing.lg, width: 280, alignItems: 'center', gap: Spacing.md },
+  card: { backgroundColor: Colors.textDark, padding: Spacing.lg, width: 280, alignItems: 'center', gap: Spacing.md, overflow: 'hidden' },
+  blob: { position: 'absolute', width: 180, height: 180, borderRadius: 90, backgroundColor: 'rgba(255,255,255,0.04)', top: -70, right: -60 },
   iconRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.textDark },
-  ring: { width: 140, height: 140, borderRadius: 70, borderWidth: 10, borderColor: Colors.primary, backgroundColor: Colors.primaryMuted, justifyContent: 'center', alignItems: 'center' },
-  timerText: { fontSize: 40, fontWeight: '800', color: Colors.primary },
-  timerSub: { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
-  hint: { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
-  skipBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1.5, borderColor: Colors.border, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm },
-  skipText: { fontSize: Fonts.sizes.sm, fontWeight: '600', color: Colors.textMuted },
+  title: { fontSize: Fonts.sizes.lg, fontWeight: '800', color: '#fff' },
+  ring: { width: 136, height: 136, borderRadius: 68, borderWidth: 8, borderColor: LIME, backgroundColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', alignItems: 'center' },
+  timerText: { fontSize: 38, fontWeight: '800', color: '#fff' },
+  timerSub: { fontSize: Fonts.sizes.sm, color: 'rgba(255,255,255,0.6)' },
+  hint: { fontSize: Fonts.sizes.sm, color: 'rgba(255,255,255,0.6)' },
+  skipBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(255,255,255,0.14)', borderRadius: BorderRadius.full, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm },
+  skipText: { fontSize: Fonts.sizes.sm, fontWeight: '700', color: '#fff' },
 });
 
 const summaryStyles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: Colors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: Spacing.lg, paddingBottom: Spacing.lg + 20, alignItems: 'center', gap: Spacing.md },
+  sheet: { backgroundColor: Colors.white, borderTopLeftRadius: 28, borderTopRightRadius: 24, padding: Spacing.lg, paddingBottom: Spacing.lg + 20, alignItems: 'center', gap: Spacing.md },
   trophyRow: { alignItems: 'center' },
   title: { fontSize: Fonts.sizes.xl, fontWeight: '800', color: Colors.textDark },
   sub: { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, justifyContent: 'center', width: '100%' },
-  statCard: { width: '45%', backgroundColor: Colors.primaryMuted, borderRadius: BorderRadius.lg, padding: Spacing.md, alignItems: 'center', gap: 4 },
-  statVal: { fontSize: Fonts.sizes.xl, fontWeight: '800', color: Colors.primary },
-  statLabel: { fontSize: Fonts.sizes.sm, color: Colors.textMuted },
+  statCard: { width: '45%', padding: Spacing.md, alignItems: 'center', gap: 4 },
+  statVal: { fontSize: Fonts.sizes.xl, fontWeight: '800', color: Colors.textDark },
+  statLabel: { fontSize: Fonts.sizes.sm, color: Colors.textMuted, fontWeight: '600' },
   doneBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: BorderRadius.full, height: 56, width: '100%', justifyContent: 'center', marginTop: Spacing.sm },
   doneBtnText: { fontSize: Fonts.sizes.md, fontWeight: '700', color: Colors.white },
 });

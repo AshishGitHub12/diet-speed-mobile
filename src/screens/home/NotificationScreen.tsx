@@ -8,6 +8,20 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
 
+// ─── Shared design system (matches Home, Weight Tracker, Meal Log, Diet,
+// Challenges, Profile…) ─────────────────────────────────────────────────────
+
+const Accent = { gold: '#B9892E', plum: '#6E5A8C', teal: '#3E7CA6', berry: '#8B3A42' };
+const Tint   = { mint: '#E1EEDD', peach: '#F5E6D3', lilac: '#E7E2F0', sky: '#DCEAF2' };
+const LIME   = '#B9F24C';
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type NotifCategory = 'All' | 'Meal' | 'Workout' | 'Water' | 'Weight' | 'AI' | 'Challenge' | 'Update';
@@ -40,17 +54,17 @@ const DUMMY_NOTIFICATIONS: Notification[] = [
   { id: 14, category: 'Update',    title: 'App Updated to v2.1',        body: 'New update includes improved AI coaching, better charts, and bug fixes. Enjoy!',           time: '1 week ago', read: true  },
 ];
 
-// ─── Category Config ──────────────────────────────────────────────────────────
+// ─── Category Config — remapped to the app's own accent/tint family ──────────
 
-const CATEGORIES: { key: NotifCategory; label: string; icon: keyof typeof Ionicons.glyphMap; color: string }[] = [
-  { key: 'All',       label: 'All',        icon: 'apps-outline',             color: Colors.primary },
-  { key: 'Meal',      label: 'Meal',       icon: 'restaurant-outline',       color: '#FF9800'      },
-  { key: 'Workout',   label: 'Workout',    icon: 'barbell-outline',          color: '#E05C5C'      },
-  { key: 'Water',     label: 'Water',      icon: 'water-outline',            color: '#2196F3'      },
-  { key: 'Weight',    label: 'Weight',     icon: 'scale-outline',            color: '#9C27B0'      },
-  { key: 'AI',        label: 'AI Coach',   icon: 'sparkles-outline',         color: Colors.primary },
-  { key: 'Challenge', label: 'Challenges', icon: 'trophy-outline',           color: '#FFD700'      },
-  { key: 'Update',    label: 'Updates',    icon: 'megaphone-outline',        color: '#607D8B'      },
+const CATEGORIES: { key: NotifCategory; label: string; icon: keyof typeof Ionicons.glyphMap; accent: string; tint: string }[] = [
+  { key: 'All',       label: 'All',        icon: 'apps-outline',       accent: Colors.textDark, tint: Colors.border     },
+  { key: 'Meal',      label: 'Meal',       icon: 'restaurant-outline', accent: Accent.gold,      tint: Tint.peach        },
+  { key: 'Workout',   label: 'Workout',    icon: 'barbell-outline',    accent: Accent.berry,     tint: '#F3E3E5'         },
+  { key: 'Water',     label: 'Water',      icon: 'water-outline',      accent: Accent.teal,      tint: Tint.sky          },
+  { key: 'Weight',    label: 'Weight',     icon: 'scale-outline',      accent: Accent.plum,      tint: Tint.lilac        },
+  { key: 'AI',        label: 'AI Coach',   icon: 'sparkles-outline',   accent: Colors.primary,   tint: Tint.mint         },
+  { key: 'Challenge', label: 'Challenges', icon: 'trophy-outline',     accent: '#8A8F1F',        tint: '#F2F7D9'         },
+  { key: 'Update',    label: 'Updates',    icon: 'megaphone-outline',  accent: Colors.textMuted, tint: Colors.border     },
 ];
 
 const getCategoryConfig = (cat: NotifCategory) =>
@@ -76,8 +90,8 @@ const NotifRow = ({
       {!notif.read && <View style={styles.unreadDot} />}
 
       {/* Icon */}
-      <View style={[styles.notifIconBox, { backgroundColor: config.color + '18' }]}>
-        <Ionicons name={config.icon} size={20} color={config.color} />
+      <View style={[styles.notifIconBox, { backgroundColor: config.tint }]}>
+        <Ionicons name={config.icon} size={20} color={config.accent} />
       </View>
 
       {/* Content */}
@@ -87,9 +101,9 @@ const NotifRow = ({
           <Text style={styles.notifTime}>{notif.time}</Text>
         </View>
         <Text style={styles.notifBody} numberOfLines={2}>{notif.body}</Text>
-        <View style={styles.notifCategoryRow}>
-          <Ionicons name={config.icon} size={11} color={config.color} />
-          <Text style={[styles.notifCategoryText, { color: config.color }]}>{config.label}</Text>
+        <View style={[styles.notifCategoryChip, { backgroundColor: config.tint }]}>
+          <Ionicons name={config.icon} size={10} color={config.accent} />
+          <Text style={[styles.notifCategoryText, { color: config.accent }]}>{config.label}</Text>
         </View>
       </View>
 
@@ -111,8 +125,8 @@ const EmptyState = ({ category }: { category: NotifCategory }) => {
   const config = getCategoryConfig(category);
   return (
     <View style={styles.emptyContainer}>
-      <View style={[styles.emptyIconBox, { backgroundColor: config.color + '18' }]}>
-        <Ionicons name={config.icon} size={40} color={config.color} />
+      <View style={[styles.emptyIconBox, { backgroundColor: config.tint }]}>
+        <Ionicons name={config.icon} size={40} color={config.accent} />
       </View>
       <Text style={styles.emptyTitle}>No notifications</Text>
       <Text style={styles.emptyBody}>
@@ -176,7 +190,7 @@ export default function NotificationScreen() {
     return (
       <View style={styles.group}>
         <Text style={styles.groupLabel}>{title}</Text>
-        <View style={styles.groupCard}>
+        <View style={[styles.groupCard, leafRadius(BorderRadius.lg)]}>
           {items.map((notif, i) => (
             <View key={notif.id}>
               <NotifRow notif={notif} onDelete={handleDelete} />
@@ -194,7 +208,7 @@ export default function NotificationScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-          <Ionicons name="chevron-back" size={28} color={Colors.primary} />
+          <Ionicons name="chevron-back" size={20} color={Colors.textDark} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.headerTitle}>Notifications</Text>
@@ -206,7 +220,7 @@ export default function NotificationScreen() {
         </View>
         {filtered.length > 0 ? (
           <TouchableOpacity onPress={handleClearAll} style={styles.headerBtn}>
-            <Ionicons name="trash-outline" size={20} color={Colors.textMuted} />
+            <Ionicons name="trash-outline" size={17} color={Colors.textDark} />
           </TouchableOpacity>
         ) : (
           <View style={styles.headerBtn} />
@@ -221,24 +235,25 @@ export default function NotificationScreen() {
               ? notifications.length
               : notifications.filter(n => n.category === cat.key).length;
             if (count === 0 && cat.key !== 'All') return null;
+            const active = activeCategory === cat.key;
             return (
               <TouchableOpacity
                 key={cat.key}
-                style={[styles.tab, activeCategory === cat.key && styles.tabActive]}
+                style={[styles.tab, active && { borderColor: cat.accent, backgroundColor: cat.tint }]}
                 onPress={() => setActiveCategory(cat.key)}
                 activeOpacity={0.7}
               >
                 <Ionicons
                   name={cat.icon}
                   size={14}
-                  color={activeCategory === cat.key ? cat.color : Colors.textMuted}
+                  color={active ? cat.accent : Colors.textMuted}
                 />
-                <Text style={[styles.tabText, activeCategory === cat.key && { color: cat.color }]}>
+                <Text style={[styles.tabText, active && { color: cat.accent, fontWeight: '800' }]}>
                   {cat.label}
                 </Text>
                 {count > 0 && (
-                  <View style={[styles.tabBadge, { backgroundColor: activeCategory === cat.key ? cat.color : Colors.border }]}>
-                    <Text style={[styles.tabBadgeText, { color: activeCategory === cat.key ? '#fff' : Colors.textMuted }]}>
+                  <View style={[styles.tabBadge, { backgroundColor: active ? cat.accent : Colors.border }]}>
+                    <Text style={[styles.tabBadgeText, { color: active ? '#fff' : Colors.textMuted }]}>
                       {count}
                     </Text>
                   </View>
@@ -277,13 +292,18 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2,
-    backgroundColor: Colors.primaryMuted,
+    backgroundColor: Colors.background,
   },
-  headerBtn:    { width: 40, alignItems: 'center', justifyContent: 'center' },
+  headerBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    borderWidth: 1.5, borderColor: Colors.border,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.white,
+  },
   headerCenter: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headerTitle:  { fontSize: Fonts.sizes.lg, fontWeight: '700', color: Colors.primary },
-  unreadBadge:  { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
-  unreadBadgeText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+  headerTitle:  { fontSize: Fonts.sizes.lg, fontWeight: '800', color: Colors.textDark },
+  unreadBadge:  { backgroundColor: LIME, borderRadius: 10, paddingHorizontal: 7, paddingVertical: 2 },
+  unreadBadgeText: { fontSize: 11, fontWeight: '800', color: Colors.textDark },
 
   // Tabs
   tabsWrapper:  { backgroundColor: Colors.white, borderBottomWidth: 1, borderBottomColor: Colors.border },
@@ -294,7 +314,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full, borderWidth: 1.5,
     borderColor: Colors.border, backgroundColor: Colors.background,
   },
-  tabActive:     { borderColor: Colors.primary, backgroundColor: Colors.primaryMuted },
   tabText:       { fontSize: Fonts.sizes.sm, fontWeight: '600', color: Colors.textMuted },
   tabBadge:      { borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
   tabBadgeText:  { fontSize: 10, fontWeight: '700' },
@@ -305,8 +324,8 @@ const styles = StyleSheet.create({
 
   // Groups
   group:      { marginBottom: Spacing.md },
-  groupLabel: { fontSize: Fonts.sizes.sm, fontWeight: '700', color: Colors.textMuted, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
-  groupCard:  { backgroundColor: Colors.white, borderRadius: BorderRadius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
+  groupLabel: { fontSize: Fonts.sizes.sm, fontWeight: '800', color: Colors.textMuted, marginBottom: Spacing.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
+  groupCard:  { backgroundColor: Colors.white, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
   divider:    { height: 1, backgroundColor: Colors.border, marginLeft: 70 },
 
   // Notification Row
@@ -315,29 +334,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.md,
     gap: Spacing.sm, position: 'relative',
   },
-  notifRowUnread: { backgroundColor: Colors.primaryMuted + '60' },
+  notifRowUnread: { backgroundColor: Tint.mint + '50' },
   unreadDot: {
     position: 'absolute', left: 6, top: 20,
     width: 7, height: 7, borderRadius: 4,
-    backgroundColor: Colors.primary,
+    backgroundColor: LIME,
   },
   notifIconBox: {
-    width: 42, height: 42, borderRadius: 12,
+    width: 42, height: 42, borderRadius: 14,
     justifyContent: 'center', alignItems: 'center',
     flexShrink: 0,
   },
   notifContent:  { flex: 1, gap: 3 },
   notifTopRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  notifTitle:    { flex: 1, fontSize: Fonts.sizes.sm, fontWeight: '700', color: Colors.textDark, marginRight: 6 },
+  notifTitle:    { flex: 1, fontSize: Fonts.sizes.sm, fontWeight: '800', color: Colors.textDark, marginRight: 6 },
   notifTime:     { fontSize: 10, color: Colors.textMuted, flexShrink: 0 },
   notifBody:     { fontSize: Fonts.sizes.sm, color: Colors.textMuted, lineHeight: 18 },
-  notifCategoryRow: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 2 },
-  notifCategoryText:{ fontSize: 10, fontWeight: '600' },
+  notifCategoryChip: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4, alignSelf: 'flex-start', borderRadius: BorderRadius.full, paddingHorizontal: 7, paddingVertical: 2 },
+  notifCategoryText:{ fontSize: 10, fontWeight: '700' },
   deleteBtn:     { paddingLeft: 4, paddingTop: 2 },
 
   // Empty
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.md, paddingHorizontal: Spacing.lg },
-  emptyIconBox:   { width: 88, height: 88, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
-  emptyTitle:     { fontSize: Fonts.sizes.xl, fontWeight: '700', color: Colors.textDark },
+  emptyIconBox:   { width: 88, height: 88, borderRadius: 28, justifyContent: 'center', alignItems: 'center' },
+  emptyTitle:     { fontSize: Fonts.sizes.xl, fontWeight: '800', color: Colors.textDark },
   emptyBody:      { fontSize: Fonts.sizes.sm, color: Colors.textMuted, textAlign: 'center', lineHeight: 20 },
 });

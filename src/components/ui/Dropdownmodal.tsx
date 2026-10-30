@@ -8,7 +8,17 @@ import {
   StyleSheet,
   useWindowDimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, BorderRadius, Fonts, Spacing } from '../../constants/theme';
+
+const Tint = { mint: '#E1EEDD' };
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
 
 interface DropdownModalProps {
   visible: boolean;
@@ -52,9 +62,14 @@ const DropdownModal: React.FC<DropdownModalProps> = ({
       <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
         <TouchableOpacity
           activeOpacity={1}
-          style={[styles.card, { maxHeight: height * 0.6 }]}
+          style={[styles.card, leafRadius(BorderRadius.xl), { maxHeight: height * 0.6 }]}
         >
-          <Text style={styles.title}>{title}</Text>
+          <View style={styles.header}>
+            <Text style={styles.title}>{title}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={8}>
+              <Ionicons name="close" size={16} color={Colors.textDark} />
+            </TouchableOpacity>
+          </View>
 
           <ScrollView
             ref={scrollRef}
@@ -82,7 +97,9 @@ const DropdownModal: React.FC<DropdownModalProps> = ({
                 >
                   {opt}
                 </Text>
-                {opt === selected && <Text style={styles.check}>✓</Text>}
+                {opt === selected && (
+                  <Ionicons name="checkmark" size={16} color={Colors.primary} />
+                )}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -101,7 +118,6 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
     padding: Spacing.lg,
     width: 280,
     shadowColor: '#000',
@@ -109,12 +125,28 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 10,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
+    position: 'relative',
+  },
   title: {
     fontSize: Fonts.sizes.md,
     fontWeight: '700',
     color: Colors.textDark,
-    marginBottom: Spacing.sm,
     textAlign: 'center',
+  },
+  closeBtn: {
+    position: 'absolute',
+    right: 0,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   option: {
     flexDirection: 'row',
@@ -125,7 +157,7 @@ const styles = StyleSheet.create({
     marginBottom: OPTION_GAP,
   },
   optionActive: {
-    backgroundColor: Colors.primaryMuted,
+    backgroundColor: Tint.mint,
   },
   optionIcon: {
     fontSize: 20,
@@ -141,11 +173,6 @@ const styles = StyleSheet.create({
   optionTextActive: {
     color: Colors.primary,
     fontWeight: '600',
-  },
-  check: {
-    fontSize: Fonts.sizes.md,
-    color: Colors.primary,
-    fontWeight: '700',
   },
 });
 

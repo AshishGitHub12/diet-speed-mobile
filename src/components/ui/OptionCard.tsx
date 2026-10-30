@@ -1,6 +1,18 @@
 import React from 'react';
 import { TouchableOpacity, Text, View, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Fonts, BorderRadius } from '@/src/constants/theme';
+
+const Tint = {
+  mint: '#E1EEDD',
+};
+
+const leafRadius = (r: number) => ({
+  borderTopLeftRadius: r + 14,
+  borderTopRightRadius: r,
+  borderBottomRightRadius: r,
+  borderBottomLeftRadius: r,
+});
 
 interface OptionCardProps {
   label: string;
@@ -18,7 +30,7 @@ const OptionCard: React.FC<OptionCardProps> = ({
   mode = 'radio',
 }) => (
   <TouchableOpacity
-    style={[styles.card, selected && styles.cardSelected]}
+    style={[styles.card, leafRadius(BorderRadius.lg), selected && styles.cardSelected]}
     onPress={onPress}
     activeOpacity={0.75}
   >
@@ -33,7 +45,7 @@ const OptionCard: React.FC<OptionCardProps> = ({
       </View>
     ) : (
       <View style={[styles.checkboxOuter, selected && styles.checkboxOuterSelected]}>
-        {selected && <Text style={styles.checkMark}>✓</Text>}
+        {selected && <Ionicons name="checkmark" size={14} color={Colors.white} />}
       </View>
     )}
   </TouchableOpacity>
@@ -45,7 +57,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
     borderWidth: 1.5,
     borderColor: Colors.inputBorder,
     paddingHorizontal: Spacing.md,
@@ -54,7 +65,7 @@ const styles = StyleSheet.create({
   },
   cardSelected: {
     borderColor: Colors.primary,
-    backgroundColor: Colors.primaryMuted,
+    backgroundColor: Tint.mint,
   },
 
   textWrap: { flex: 1 },
@@ -79,6 +90,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.inputBorder,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: Colors.white,
   },
   radioOuterSelected: { borderColor: Colors.primary },
   radioInner: {
@@ -102,7 +114,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     backgroundColor: Colors.primary,
   },
-  checkMark: { color: Colors.white, fontSize: 13, fontWeight: '700' },
 });
 
 export default OptionCard;
